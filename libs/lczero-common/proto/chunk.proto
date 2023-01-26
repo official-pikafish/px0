@@ -24,33 +24,40 @@
   terms of the respective license agreement, the licensors of this
   Program grant you additional permission to convey the resulting work.
 */
+syntax = "proto2";
 
-#include <cstdint>
-#include <initializer_list>
+import "proto/net.proto";
 
-#pragma once
-namespace lczero {
+package pblczero;
 
-// Tries to scramble @val.
-inline uint64_t Hash(uint64_t val) {
-  return 0xfad0d7f2fbb059f1ULL * (val + 0xbaad41cdcb839961ULL) +
-         0x7acec0050bf82f43ULL * ((val >> 31) + 0xd571b3a92b1b2755ULL);
+message State {
+  repeated fixed128 plane = 1 [packed=true];
+  optional uint32 side_to_move = 2;
+  optional uint32 rule_50 = 3;
 }
 
-// Appends value to a hash.
-inline uint64_t HashCat(uint64_t hash, uint64_t x) {
-  hash ^= 0x299799adf0d95defULL + Hash(x) + (hash << 6) + (hash >> 2);
-  return hash;
+message Policy {
+  repeated uint32 index = 1 [packed=true];
+  repeated float prior = 2 [packed=true];
 }
 
-// Combines 128-bit values into concatenated hash.
-inline uint64_t HashCat(std::initializer_list<__uint128_t> args) {
-  uint64_t hash = 0;
-  for (__uint128_t x : args) {
-    hash = HashCat(hash, uint64_t(x >> 64));
-    hash = HashCat(hash, uint64_t(x));
+message Game {
+  enum Result {
+    WHITE = 0;
+    BLACK = 1;
+    DRAW = 2;
   }
-  return hash;
+
+  repeated State state = 1;
+  repeated Policy policy = 2;
+  repeated float value = 3 [packed=true];
+  repeated uint32 move = 4 [packed=true];
+  optional Result result = 5;
 }
 
-}  // namespace lczero
+message Chunk {
+  optional fixed32 magic = 1;
+  optional string license = 2;
+  optional EngineVersion version = 3;
+  repeated Game game = 4;
+}

@@ -84,7 +84,7 @@ void V6TrainingDataArray::Write(TrainingDataWriter* writer, GameResult result,
   // different approach.
   float m_estimate = training_data_.back().best_m + training_data_.size() - 1;
   for (auto chunk : training_data_) {
-    bool black_to_move = chunk.side_to_move_or_enpassant;
+    bool black_to_move = chunk.side_to_move;
     if (IsCanonicalFormat(static_cast<pblczero::NetworkFormat::InputFormat>(
             chunk.input_format))) {
       black_to_move = (chunk.invariance_info & (1u << 7)) != 0;
@@ -129,7 +129,7 @@ void V6TrainingDataArray::Add(const Node* node, const PositionHistory& history,
       &transform);
   int plane_idx = 0;
   for (auto& plane : result.planes) {
-    plane = ReverseBitsInBytes(planes[plane_idx++].mask);
+    plane = FlipBoard(planes[plane_idx++].mask);
   }
 
   // Populate probabilities.
@@ -188,40 +188,14 @@ void V6TrainingDataArray::Add(const Node* node, const PositionHistory& history,
   }
   result.policy_kld = kld_sum;
 
-  const auto& castlings = position.GetBoard().castlings();
-  // Populate castlings.
-  // For non-frc trained nets, just send 1 like we used to.
-  uint8_t our_queen_side = 1;
-  uint8_t our_king_side = 1;
-  uint8_t their_queen_side = 1;
-  uint8_t their_king_side = 1;
-  // If frc trained, send the bit mask representing rook position.
-  if (Is960CastlingFormat(input_format_)) {
-    our_queen_side <<= castlings.our_queenside_rook();
-    our_king_side <<= castlings.our_kingside_rook();
-    their_queen_side <<= castlings.their_queenside_rook();
-    their_king_side <<= castlings.their_kingside_rook();
-  }
-
-  result.castling_us_ooo = castlings.we_can_000() ? our_queen_side : 0;
-  result.castling_us_oo = castlings.we_can_00() ? our_king_side : 0;
-  result.castling_them_ooo = castlings.they_can_000() ? their_queen_side : 0;
-  result.castling_them_oo = castlings.they_can_00() ? their_king_side : 0;
-
   // Other params.
+  result.side_to_move = position.IsBlackToMove() ? 1 : 0;
   if (IsCanonicalFormat(input_format_)) {
-    result.side_to_move_or_enpassant =
-        position.GetBoard().en_passant().as_int() >> 56;
-    if ((transform & FlipTransform) != 0) {
-      result.side_to_move_or_enpassant =
-          ReverseBitsInBytes(result.side_to_move_or_enpassant);
-    }
     // Send transform in deprecated move count so rescorer can reverse it to
     // calculate the actual move list from the input data.
     result.invariance_info =
         transform | (position.IsBlackToMove() ? (1u << 7) : 0u);
   } else {
-    result.side_to_move_or_enpassant = position.IsBlackToMove() ? 1 : 0;
     result.invariance_info = 0;
   }
   if (best_is_proven) {

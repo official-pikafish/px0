@@ -31,55 +31,17 @@ namespace lczero {
 
 InputPlanes PlanesFromTrainingData(const V6TrainingData& data) {
   InputPlanes result;
-  for (int i = 0; i < 104; i++) {
+  for (int i = 0; i < 120; i++) {
     result.emplace_back();
-    result.back().mask = ReverseBitsInBytes(data.planes[i]);
-  }
-  switch (data.input_format) {
-    case pblczero::NetworkFormat::InputFormat::INPUT_CLASSICAL_112_PLANE: {
-      result.emplace_back();
-      result.back().mask = data.castling_us_ooo != 0 ? ~0LL : 0LL;
-      result.emplace_back();
-      result.back().mask = data.castling_us_oo != 0 ? ~0LL : 0LL;
-      result.emplace_back();
-      result.back().mask = data.castling_them_ooo != 0 ? ~0LL : 0LL;
-      result.emplace_back();
-      result.back().mask = data.castling_them_oo != 0 ? ~0LL : 0LL;
-      break;
-    }
-    case pblczero::NetworkFormat::INPUT_112_WITH_CASTLING_PLANE:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION_HECTOPLIES:
-    case pblczero::NetworkFormat::
-        INPUT_112_WITH_CANONICALIZATION_HECTOPLIES_ARMAGEDDON:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION_V2:
-    case pblczero::NetworkFormat::
-        INPUT_112_WITH_CANONICALIZATION_V2_ARMAGEDDON: {
-      result.emplace_back();
-      result.back().mask =
-          data.castling_us_ooo |
-          (static_cast<uint64_t>(data.castling_them_ooo) << 56);
-      result.emplace_back();
-      result.back().mask = data.castling_us_oo |
-                           (static_cast<uint64_t>(data.castling_them_oo) << 56);
-      // 2 empty planes in this format.
-      result.emplace_back();
-      result.emplace_back();
-      break;
-    }
-
-    default:
-      throw Exception("Unsupported input plane encoding " +
-                      std::to_string(data.input_format));
+    result.back().mask = FlipBoard(data.planes[i]);
   }
   result.emplace_back();
   auto typed_format =
       static_cast<pblczero::NetworkFormat::InputFormat>(data.input_format);
   if (IsCanonicalFormat(typed_format)) {
-    result.back().mask = static_cast<uint64_t>(data.side_to_move_or_enpassant)
-                         << 56;
+    result.back().mask = __uint128_t(0);
   } else {
-    result.back().mask = data.side_to_move_or_enpassant != 0 ? ~0LL : 0LL;
+    result.back().mask = data.side_to_move != 0 ? kAllSquares : __uint128_t(0);
   }
   result.emplace_back();
   if (IsHectopliesFormat(typed_format)) {
@@ -101,15 +63,9 @@ InputPlanes PlanesFromTrainingData(const V6TrainingData& data) {
     int transform = data.invariance_info;
     for (size_t i = 0; i <= result.size(); i++) {
       auto v = result[i].mask;
-      if (v == 0 || v == ~0ULL) continue;
-      if ((transform & TransposeTransform) != 0) {
-        v = TransposeBitsInBytes(v);
-      }
-      if ((transform & MirrorTransform) != 0) {
-        v = ReverseBytesInBytes(v);
-      }
+      if (v == 0 || v == kAllSquares) continue;
       if ((transform & FlipTransform) != 0) {
-        v = ReverseBitsInBytes(v);
+        v = FlipBoard(v);
       }
       result[i].mask = v;
     }

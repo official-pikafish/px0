@@ -36,36 +36,164 @@
 
 namespace lczero {
 
+#ifndef __GNUC__
+// Manually support __uint128_t for non-GNU compilers
+struct __uint128_t {
+  uint64_t b64[2];
+
+  constexpr __uint128_t() : b64{ 0, 0 } {}
+  constexpr __uint128_t(uint64_t i) : b64{ 0, i } {}
+  constexpr __uint128_t(uint64_t hi, uint64_t lo) : b64{ hi, lo } {};
+
+  constexpr operator bool() const {
+    return b64[0] || b64[1];
+  }
+
+  constexpr operator long long unsigned() const {
+    return b64[1];
+  }
+
+  constexpr operator unsigned() const {
+    return b64[1];
+  }
+
+  constexpr __uint128_t operator << (const unsigned int bits) const {
+    return __uint128_t(bits >= 64 ? b64[1] << (bits - 64)
+                       : bits == 0 ? b64[0]
+                                   : ((b64[0] << bits) | (b64[1] >> (64 - bits))),
+                       bits >= 64 ? 0 : b64[1] << bits);
+  }
+
+  constexpr __uint128_t operator >> (const unsigned int bits) const {
+    return __uint128_t(bits >= 64 ? 0 : b64[0] >> bits,
+                       bits >= 64 ? b64[0] >> (bits - 64)
+                       : bits == 0 ? b64[1]
+                                   : ((b64[1] >> bits) | (b64[0] << (64 - bits))));
+  }
+
+  constexpr __uint128_t operator << (const int bits) const {
+    return *this << unsigned(bits);
+  }
+
+  constexpr __uint128_t operator >> (const int bits) const {
+    return *this >> unsigned(bits);
+  }
+
+  constexpr bool operator == (const __uint128_t y) const {
+    return (b64[0] == y.b64[0]) && (b64[1] == y.b64[1]);
+  }
+
+  constexpr bool operator != (const __uint128_t y) const {
+    return !(*this == y);
+  }
+
+  inline __uint128_t& operator |=(const __uint128_t x) {
+    b64[0] |= x.b64[0];
+    b64[1] |= x.b64[1];
+    return *this;
+  }
+  inline __uint128_t& operator &=(const __uint128_t x) {
+    b64[0] &= x.b64[0];
+    b64[1] &= x.b64[1];
+    return *this;
+  }
+  inline __uint128_t& operator ^=(const __uint128_t x) {
+    b64[0] ^= x.b64[0];
+    b64[1] ^= x.b64[1];
+    return *this;
+  }
+
+  constexpr __uint128_t operator ~ () const {
+    return __uint128_t(~b64[0], ~b64[1]);
+  }
+
+  constexpr __uint128_t operator - () const {
+    return __uint128_t(-b64[0] - (b64[1] > 0), -b64[1]);
+  }
+
+  constexpr __uint128_t operator | (const __uint128_t x) const {
+    return __uint128_t(b64[0] | x.b64[0], b64[1] | x.b64[1]);
+  }
+
+  constexpr __uint128_t operator & (const __uint128_t x) const {
+    return __uint128_t(b64[0] & x.b64[0], b64[1] & x.b64[1]);
+  }
+
+  constexpr __uint128_t operator ^ (const __uint128_t x) const {
+    return __uint128_t(b64[0] ^ x.b64[0], b64[1] ^ x.b64[1]);
+  }
+
+  constexpr __uint128_t operator - (const __uint128_t x) const {
+    return __uint128_t(b64[0] - x.b64[0] - (b64[1] < x.b64[1]), b64[1] - x.b64[1]);
+  }
+
+  constexpr __uint128_t operator - (const int x) const {
+    return *this - __uint128_t(x);
+  }
+
+  inline __uint128_t operator * (const __uint128_t x) const {
+    uint64_t a_lo = (uint32_t)b64[1];
+    uint64_t a_hi = b64[1] >> 32;
+    uint64_t b_lo = (uint32_t)x.b64[1];
+    uint64_t b_hi = x.b64[1] >> 32;
+
+    uint64_t t1 = (a_hi * b_lo) + ((a_lo * b_lo) >> 32);
+    uint64_t t2 = (a_lo * b_hi) + (t1 & 0xFFFFFFFF);
+
+    return __uint128_t(b64[0] * x.b64[1] + b64[1] * x.b64[0] + (a_hi * b_hi) + (t1 >> 32) + (t2 >> 32),
+                       (t2 << 32) + (a_lo * b_lo & 0xFFFFFFFF));
+  }
+};
+#endif
+
 // Stores a coordinates of a single square.
 class BoardSquare {
  public:
   constexpr BoardSquare() {}
-  // As a single number, 0 to 63, bottom to top, left to right.
-  // 0 is a1, 8 is a2, 63 is h8.
+  // As a single number, 0 to 89, bottom to top, left to right.
+  // 0 is a0, 9 is a1, 89 is i9.
   constexpr BoardSquare(std::uint8_t num) : square_(num) {}
   // From row(bottom to top), and col(left to right), 0-based.
-  constexpr BoardSquare(int row, int col) : BoardSquare(row * 8 + col) {}
+  constexpr BoardSquare(int row, int col) : BoardSquare(row * 9 + col) {}
   // From Square name, e.g e4. Only lowercase.
   BoardSquare(const std::string& str, bool black = false)
-      : BoardSquare(black ? '8' - str[1] : str[1] - '1', str[0] - 'a') {}
+      : BoardSquare(black ? '9' - str[1] : str[1] - '0', str[0] - 'a') {}
   constexpr std::uint8_t as_int() const { return square_; }
-  constexpr std::uint64_t as_board() const { return 1ULL << square_; }
-  void set(int row, int col) { square_ = row * 8 + col; }
+  constexpr __uint128_t as_board() const { return __uint128_t(1) << square_; }
+  void set(int row, int col) { square_ = row * 9 + col; }
+
+  BoardSquare operator+(const std::pair<int, int> directions) const {
+    return BoardSquare(row() + directions.first, col() + directions.second);
+  }
+  BoardSquare operator-(const std::pair<int, int> directions) const {
+    return BoardSquare(row() - directions.first, col() - directions.second);
+  }
+  BoardSquare& operator+=(const std::pair<int, int> directions) {
+    set(row() + directions.first, col() + directions.second);
+    return *this;
+  }
 
   // 0-based, bottom to top.
-  int row() const { return square_ / 8; }
+  int row() const { return square_ / 9; }
   // 0-based, left to right.
-  int col() const { return square_ % 8; }
+  int col() const { return square_ % 9; }
 
-  // Row := 7 - row.  Col remains the same.
-  void Mirror() { square_ = square_ ^ 0b111000; }
+  // Row := 9 - row.  Col remains the same.
+  void Mirror() { set(9 - row(), col()); }
 
-  // Checks whether coordinate is within 0..7.
-  static bool IsValidCoord(int x) { return x >= 0 && x < 8; }
+  // Checks whether coordinate is within 0..9.
+  static bool IsValidCoordRow(int x) { return x >= 0 && x < 10; }
 
-  // Checks whether coordinates are within 0..7.
+  // Checks whether coordinate is within 0..8.
+  static bool IsValidCoordCol(int x) { return x >= 0 && x < 9; }
+
+  // Checks whether coordinates are within 0..9 for row, within 0..8 for col.
   static bool IsValid(int row, int col) {
-    return IsValidCoord(row) && IsValidCoord(col);
+    return IsValidCoordRow(row) && IsValidCoordCol(col);
+  }
+
+  bool IsValid() const {
+    return IsValidCoordRow(row()) && IsValidCoordCol(col());
   }
 
   constexpr bool operator==(const BoardSquare& other) const {
@@ -78,40 +206,42 @@ class BoardSquare {
 
   // Returns the square in algebraic notation (e.g. "e4").
   std::string as_string() const {
-    return std::string(1, 'a' + col()) + std::string(1, '1' + row());
+    return std::string(1, 'a' + col()) + std::string(1, '0' + row());
   }
 
  private:
-  std::uint8_t square_ = 0;  // Only lower six bits should be set.
+  std::uint8_t square_ = 0;  // Only lower seven bits should be set.
 };
 
-// Represents a board as an array of 64 bits.
+// Represents a board as an array of 90 bits.
 // Bit enumeration goes from bottom to top, from left to right:
-// Square a1 is bit 0, square a8 is bit 7, square b1 is bit 8.
+// Square a0 is bit 0, square i0 is bit 8, square a1 is bit 9.
 class BitBoard {
  public:
-  constexpr BitBoard(std::uint64_t board) : board_(board) {}
+  constexpr BitBoard(__uint128_t board) : board_(board) {}
   BitBoard() = default;
   BitBoard(const BitBoard&) = default;
   BitBoard& operator=(const BitBoard&) = default;
 
-  std::uint64_t as_int() const { return board_; }
+  constexpr __uint128_t as_int() const { return board_; }
   void clear() { board_ = 0; }
 
   // Counts the number of set bits in the BitBoard.
   int count() const {
 #if defined(NO_POPCNT)
-    std::uint64_t x = board_;
-    x -= (x >> 1) & 0x5555555555555555;
-    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
-    x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
-    return (x * 0x0101010101010101) >> 56;
-#elif defined(_MSC_VER) && defined(_WIN64)
-    return _mm_popcnt_u64(board_);
+    auto _pop_count = [&] (std::uint64_t x) {
+      x -= (x >> 1) & 0x5555555555555555;
+      x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
+      x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0F;
+      return (x * 0x0101010101010101) >> 56;
+    };
+    std::uint64_t high = board_ >> 64;
+    std::uint64_t low = board_;
+    return _pop_count(high) + _pop_count(low);
 #elif defined(_MSC_VER)
-    return __popcnt(board_) + __popcnt(board_ >> 32);
+    return _mm_popcnt_u64(board_ >> 64) + _mm_popcnt_u64(board_);
 #else
-    return __builtin_popcountll(board_);
+    return __builtin_popcountll(board_ >> 64) + __builtin_popcountll(board_);
 #endif
   }
 
@@ -120,7 +250,7 @@ class BitBoard {
   // Useful when counting bits in a Q, R, N or B BitBoard.
   int count_few() const {
 #if defined(NO_POPCNT)
-    std::uint64_t x = board_;
+    __uint128_t x = board_;
     int count;
     for (count = 0; x != 0; ++count) {
       // Clear the rightmost set bit.
@@ -136,7 +266,7 @@ class BitBoard {
   // Otherwise does nothing (doesn't reset!).
   void set_if(BoardSquare square, bool cond) { set_if(square.as_int(), cond); }
   void set_if(std::uint8_t pos, bool cond) {
-    board_ |= (std::uint64_t(cond) << pos);
+    board_ |= (__uint128_t(cond) << pos);
   }
   void set_if(int row, int col, bool cond) {
     set_if(BoardSquare(row, col), cond);
@@ -144,18 +274,18 @@ class BitBoard {
 
   // Sets value of given square to 1.
   void set(BoardSquare square) { set(square.as_int()); }
-  void set(std::uint8_t pos) { board_ |= (std::uint64_t(1) << pos); }
+  void set(std::uint8_t pos) { board_ |= (__uint128_t(1) << pos); }
   void set(int row, int col) { set(BoardSquare(row, col)); }
 
   // Sets value of given square to 0.
   void reset(BoardSquare square) { reset(square.as_int()); }
-  void reset(std::uint8_t pos) { board_ &= ~(std::uint64_t(1) << pos); }
+  void reset(std::uint8_t pos) { board_ &= ~(__uint128_t(1) << pos); }
   void reset(int row, int col) { reset(BoardSquare(row, col)); }
 
   // Gets value of a square.
   bool get(BoardSquare square) const { return get(square.as_int()); }
   bool get(std::uint8_t pos) const {
-    return board_ & (std::uint64_t(1) << pos);
+    return board_ & (__uint128_t(1) << pos);
   }
   bool get(int row, int col) const { return get(BoardSquare(row, col)); }
 
@@ -166,7 +296,7 @@ class BitBoard {
   bool intersects(const BitBoard& other) const { return board_ & other.board_; }
 
   // Flips black and white side of a board.
-  void Mirror() { board_ = ReverseBytesInBytes(board_); }
+  void Mirror() { board_ = MirrorBoard(board_); }
 
   bool operator==(const BitBoard& other) const {
     return board_ == other.board_;
@@ -181,8 +311,8 @@ class BitBoard {
 
   std::string DebugString() const {
     std::string res;
-    for (int i = 7; i >= 0; --i) {
-      for (int j = 0; j < 8; ++j) {
+    for (int i = 9; i >= 0; --i) {
+      for (int j = 0; j < 9; ++j) {
         if (get(i, j))
           res += '#';
         else
@@ -196,6 +326,16 @@ class BitBoard {
   // Applies a mask to the bitboard (intersects).
   BitBoard& operator&=(const BitBoard& a) {
     board_ &= a.board_;
+    return *this;
+  }
+
+  BitBoard& operator-=(const BitBoard& a) {
+    board_ &= ~a.board_;
+    return *this;
+  }
+
+  BitBoard& operator|=(const BitBoard& a) {
+    board_ |= a.board_;
     return *this;
   }
 
@@ -225,36 +365,28 @@ class BitBoard {
   }
 
  private:
-  std::uint64_t board_ = 0;
+  __uint128_t board_ = 0;
 };
 
 class Move {
  public:
-  enum class Promotion : std::uint8_t { None, Queen, Rook, Bishop, Knight };
   Move() = default;
   constexpr Move(BoardSquare from, BoardSquare to)
-      : data_(to.as_int() + (from.as_int() << 6)) {}
-  constexpr Move(BoardSquare from, BoardSquare to, Promotion promotion)
-      : data_(to.as_int() + (from.as_int() << 6) +
-              (static_cast<uint8_t>(promotion) << 12)) {}
+      : data_(to.as_int() + (from.as_int() << 7)) {}
   Move(const std::string& str, bool black = false);
   Move(const char* str, bool black = false) : Move(std::string(str), black) {}
 
   BoardSquare to() const { return BoardSquare(data_ & kToMask); }
-  BoardSquare from() const { return BoardSquare((data_ & kFromMask) >> 6); }
-  Promotion promotion() const { return Promotion((data_ & kPromoMask) >> 12); }
+  BoardSquare from() const { return BoardSquare((data_ & kFromMask) >> 7); }
 
   void SetTo(BoardSquare to) { data_ = (data_ & ~kToMask) | to.as_int(); }
   void SetFrom(BoardSquare from) {
-    data_ = (data_ & ~kFromMask) | (from.as_int() << 6);
+    data_ = (data_ & ~kFromMask) | (from.as_int() << 7);
   }
-  void SetPromotion(Promotion promotion) {
-    data_ = (data_ & ~kPromoMask) | (static_cast<uint8_t>(promotion) << 12);
-  }
-  // 0 .. 16384, knight promotion and no promotion is the same.
+  // 0 .. 16384.
   uint16_t as_packed_int() const;
 
-  // 0 .. 1857, to use in neural networks.
+  // 0 .. 2061, to use in neural networks.
   // Transform is a bit field which describes a transform to be applied to the
   // the move before converting it to an index.
   uint16_t as_nn_index(int transform) const;
@@ -262,37 +394,28 @@ class Move {
   explicit operator bool() const { return data_ != 0; }
   bool operator==(const Move& other) const { return data_ == other.data_; }
 
-  void Mirror() { data_ ^= 0b111000111000; }
+  void Mirror() {
+    BoardSquare f = from();
+    f.Mirror();
+    SetFrom(f);
+    BoardSquare t = to();
+    t.Mirror();
+    SetTo(t);
+  }
 
   std::string as_string() const {
-    std::string res = from().as_string() + to().as_string();
-    switch (promotion()) {
-      case Promotion::None:
-        return res;
-      case Promotion::Queen:
-        return res + 'q';
-      case Promotion::Rook:
-        return res + 'r';
-      case Promotion::Bishop:
-        return res + 'b';
-      case Promotion::Knight:
-        return res + 'n';
-    }
-    assert(false);
-    return "Error!";
+    return from().as_string() + to().as_string();
   }
 
  private:
   uint16_t data_ = 0;
   // Move, using the following encoding:
-  // bits 0..5 "to"-square
-  // bits 6..11 "from"-square
-  // bits 12..14 promotion value
+  // bits 0..6 "to"-square
+  // bits 7..13 "from"-square
 
   enum Masks : uint16_t {
-    kToMask = 0b0000000000111111,
-    kFromMask = 0b0000111111000000,
-    kPromoMask = 0b0111000000000000,
+    kToMask = 0b0000000001111111,
+    kFromMask = 0b0011111110000000,
   };
 };
 

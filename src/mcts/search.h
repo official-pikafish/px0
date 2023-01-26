@@ -41,7 +41,6 @@
 #include "mcts/stoppers/timemgr.h"
 #include "neural/cache.h"
 #include "neural/network.h"
-#include "syzygy/syzygy.h"
 #include "utils/logging.h"
 #include "utils/mutex.h"
 
@@ -54,8 +53,7 @@ class Search {
          const MoveList& searchmoves,
          std::chrono::steady_clock::time_point start_time,
          std::unique_ptr<SearchStopper> stopper, bool infinite,
-         const OptionsDict& options, NNCache* cache,
-         SyzygyTablebase* syzygy_tb);
+         const OptionsDict& options, NNCache* cache);
 
   ~Search();
 
@@ -163,7 +161,6 @@ class Search {
 
   Node* root_node_;
   NNCache* cache_;
-  SyzygyTablebase* syzygy_tb_;
   // Fixed positions which happened before the search.
   const PositionHistory& played_history_;
 
@@ -172,10 +169,6 @@ class Search {
   const MoveList searchmoves_;
   const std::chrono::steady_clock::time_point start_time_;
   int64_t initial_visits_;
-  // root_is_in_dtz_ must be initialized before root_move_filter_.
-  bool root_is_in_dtz_ = false;
-  // tb_hits_ must be initialized before root_move_filter_.
-  std::atomic<int> tb_hits_{0};
   const MoveList root_move_filter_;
 
   mutable SharedMutex nodes_mutex_;

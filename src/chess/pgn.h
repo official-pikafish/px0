@@ -173,90 +173,40 @@ class PgnReader {
     cur_startpos_ = ChessBoard::kStartposFen;
   }
 
-  Move::Promotion PieceToPromotion(int p) {
-    switch (p) {
-      case -1:
-        return Move::Promotion::None;
-      case 2:
-        return Move::Promotion::Queen;
-      case 3:
-        return Move::Promotion::Bishop;
-      case 4:
-        return Move::Promotion::Knight;
-      case 5:
-        return Move::Promotion::Rook;
-      default:
-        // 0 and 1 are pawn and king, which are not legal promotions, other
-        // numbers don't correspond to a known piece type.
-        CERR << "Unexpected promotion!!";
-        throw Exception("Trying to create a move with illegal promotion.");
-    }
-  }
-
   Move SanToMove(const std::string& san, const ChessBoard& board) {
     int p = 0;
     size_t idx = 0;
-    if (san[0] == 'K') {
+    if (san[0] == 'A') {
       p = 1;
-    } else if (san[0] == 'Q') {
+    } else if (san[0] == 'C') {
       p = 2;
-    } else if (san[0] == 'B') {
+    } else if (san[0] == 'P') {
       p = 3;
     } else if (san[0] == 'N') {
       p = 4;
-    } else if (san[0] == 'R') {
+    } else if (san[0] == 'B') {
       p = 5;
-    } else if (san[0] == 'O' && san.size() > 2 && san[1] == '-' &&
-               san[2] == 'O') {
-      Move m;
-      auto king_board = board.kings() & board.ours();
-      BoardSquare king_sq(GetLowestBit(king_board.as_int()));
-      if (san.size() > 4 && san[3] == '-' && san[4] == 'O') {
-        m = Move(BoardSquare(0, king_sq.col()),
-                 BoardSquare(0, board.castlings().our_queenside_rook()));
-      } else {
-        m = Move(BoardSquare(0, king_sq.col()),
-                 BoardSquare(0, board.castlings().our_kingside_rook()));
-      }
-      return m;
+    } else if (san[0] == 'K') {
+      p = 6;
     }
-    if (p != 0) idx++;
-    // Formats e4 1e5 de5 d1e5 - with optional x's - followed by =Q for
-    // promotions, and even more characters after that also optional.
+
+    // Formats e4 1e5 de5 d1e5 - with optional x's -
+    // and even more characters after that also optional.
     int r1 = -1;
     int c1 = -1;
     int r2 = -1;
     int c2 = -1;
-    int p2 = -1;
-    bool pPending = false;
     for (; idx < san.size(); idx++) {
       if (san[idx] == 'x') continue;
-      if (san[idx] == '=') {
-        pPending = true;
-        continue;
-      }
-      if (san[idx] >= '1' && san[idx] <= '8') {
+      if (san[idx] >= '0' && san[idx] <= '9') {
         r1 = r2;
-        r2 = san[idx] - '1';
+        r2 = san[idx] - '0';
         continue;
       }
-      if (san[idx] >= 'a' && san[idx] <= 'h') {
+      if (san[idx] >= 'a' && san[idx] <= 'i') {
         c1 = c2;
         c2 = san[idx] - 'a';
         continue;
-      }
-      if (pPending) {
-        if (san[idx] == 'Q') {
-          p2 = 2;
-        } else if (san[idx] == 'B') {
-          p2 = 3;
-        } else if (san[idx] == 'N') {
-          p2 = 4;
-        } else if (san[idx] == 'R') {
-          p2 = 5;
-        }
-        pPending = false;
-        break;
       }
       break;
     }
@@ -265,22 +215,24 @@ class PgnReader {
       int sr1 = r1;
       int sr2 = r2;
       if (board.flipped()) {
-        if (sr1 != -1) sr1 = 7 - sr1;
-        sr2 = 7 - sr2;
+        if (sr1 != -1) sr1 = 9 - sr1;
+        sr2 = 9 - sr2;
       }
       BitBoard searchBits;
       if (p == 0) {
-        searchBits = (board.pawns() & board.ours());
+        searchBits = (board.rooks() & board.ours());
       } else if (p == 1) {
-        searchBits = (board.kings() & board.ours());
+        searchBits = (board.advisors() & board.ours());
       } else if (p == 2) {
-        searchBits = (board.queens() & board.ours());
+        searchBits = (board.cannons() & board.ours());
       } else if (p == 3) {
-        searchBits = (board.bishops() & board.ours());
+        searchBits = (board.pawns() & board.ours());
       } else if (p == 4) {
         searchBits = (board.knights() & board.ours());
       } else if (p == 5) {
-        searchBits = (board.rooks() & board.ours());
+        searchBits = (board.bishops() & board.ours());
+      } else if (p == 6) {
+        searchBits = (board.kings() & board.ours());
       }
       auto plm = board.GenerateLegalMoves();
       int pr1 = -1;
@@ -289,7 +241,7 @@ class PgnReader {
         if (sr1 != -1 && sq.row() != sr1) continue;
         if (c1 != -1 && sq.col() != c1) continue;
         if (std::find(plm.begin(), plm.end(),
-                      Move(sq, BoardSquare(sr2, c2), PieceToPromotion(p2))) ==
+                      Move(sq, BoardSquare(sr2, c2))) ==
             plm.end()) {
           continue;
         }
@@ -307,10 +259,10 @@ class PgnReader {
       r1 = pr1;
       c1 = pc1;
       if (board.flipped()) {
-        r1 = 7 - r1;
+        r1 = 9 - r1;
       }
     }
-    Move m(BoardSquare(r1, c1), BoardSquare(r2, c2), PieceToPromotion(p2));
+    Move m(BoardSquare(r1, c1), BoardSquare(r2, c2));
     if (board.flipped()) m.Mirror();
     return m;
   }

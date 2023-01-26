@@ -41,10 +41,11 @@
 int main(int argc, const char** argv) {
   using namespace lczero;
   EscCodes::Init();
-  LOGFILE << "Lc0 started.";
-  CERR << EscCodes::Bold() << EscCodes::Red() << "       _";
-  CERR << "|   _ | |";
-  CERR << "|_ |_ |_|" << EscCodes::Reset() << " v" << GetVersionStr()
+  LOGFILE << "Px0 started.";
+  CERR << EscCodes::Bold() << EscCodes::Red()
+       <<   " _    _";
+  CERR << R"(|_|\/| |)";
+  CERR << R"(|  /\|_|)"<< EscCodes::Reset() << " v" << GetVersionStr()
        << " built " << __DATE__;
 
   try {

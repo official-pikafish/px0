@@ -49,28 +49,10 @@ namespace {
 // Maximum delay between outputting "uci info" when nothing interesting happens.
 const int kUciInfoMinimumFrequencyMs = 5000;
 
-MoveList MakeRootMoveFilter(const MoveList& searchmoves,
-                            SyzygyTablebase* syzygy_tb,
-                            const PositionHistory& history, bool fast_play,
-                            std::atomic<int>* tb_hits, bool* dtz_success) {
-  assert(tb_hits);
-  assert(dtz_success);
+MoveList MakeRootMoveFilter(const MoveList& searchmoves) {
   // Search moves overrides tablebase.
   if (!searchmoves.empty()) return searchmoves;
-  const auto& board = history.Last().GetBoard();
   MoveList root_moves;
-  if (!syzygy_tb || !board.castlings().no_legal_castle() ||
-      (board.ours() | board.theirs()).count() > syzygy_tb->max_cardinality()) {
-    return root_moves;
-  }
-  if (syzygy_tb->root_probe(
-          history.Last(), fast_play || history.DidRepeatSinceLastZeroingMove(),
-          &root_moves)) {
-    *dtz_success = true;
-    tb_hits->fetch_add(1, std::memory_order_acq_rel);
-  } else if (syzygy_tb->root_probe_wdl(history.Last(), &root_moves)) {
-    tb_hits->fetch_add(1, std::memory_order_acq_rel);
-  }
   return root_moves;
 }
 
@@ -150,22 +132,18 @@ Search::Search(const NodeTree& tree, Network* network,
                const MoveList& searchmoves,
                std::chrono::steady_clock::time_point start_time,
                std::unique_ptr<SearchStopper> stopper, bool infinite,
-               const OptionsDict& options, NNCache* cache,
-               SyzygyTablebase* syzygy_tb)
+               const OptionsDict& options, NNCache* cache)
     : ok_to_respond_bestmove_(!infinite),
       stopper_(std::move(stopper)),
       root_node_(tree.GetCurrentHead()),
       cache_(cache),
-      syzygy_tb_(syzygy_tb),
       played_history_(tree.GetPositionHistory()),
       network_(network),
       params_(options),
       searchmoves_(searchmoves),
       start_time_(start_time),
       initial_visits_(root_node_->GetN()),
-      root_move_filter_(MakeRootMoveFilter(
-          searchmoves_, syzygy_tb_, played_history_,
-          params_.GetSyzygyFastPlay(), &tb_hits_, &root_is_in_dtz_)),
+      root_move_filter_(MakeRootMoveFilter(searchmoves_)),
       uci_responder_(std::move(uci_responder)) {
   if (params_.GetMaxConcurrentSearchers() != 0) {
     pending_searchers_.store(params_.GetMaxConcurrentSearchers(),
@@ -225,7 +203,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) REQUIRES(counters_mutex_) {
       common_info.nps = total_playouts_ * 1000 / time_since_first_batch_ms;
     }
   }
-  common_info.tb_hits = tb_hits_.load(std::memory_order_acquire);
+  common_info.tb_hits = 0;
 
   int multipv = 0;
   const auto default_q = -root_node_->GetQ(-draw_score);
@@ -1829,79 +1807,38 @@ void SearchWorker::ExtendNode(Node* node, int depth,
   // Check whether it's a draw/lose by position. Importantly, we must check
   // these before doing the by-rule checks below.
   if (legal_moves.empty()) {
-    // Could be a checkmate or a stalemate
-    if (board.IsUnderCheck()) {
-      node->MakeTerminal(GameResult::WHITE_WON);
-    } else {
-      node->MakeTerminal(GameResult::DRAW);
-    }
+    // Checkmate
+    node->MakeTerminal(GameResult::WHITE_WON);
     return;
   }
 
-  // We can shortcircuit these draws-by-rule only if they aren't root;
+  // We can shortcircuit these end-by-rule only if they aren't root;
   // if they are root, then thinking about them is the point.
   if (node != search_->root_node_) {
-    if (!board.HasMatingMaterial()) {
-      node->MakeTerminal(GameResult::DRAW);
-      return;
-    }
-
-    if (history->Last().GetRule50Ply() >= 100) {
-      node->MakeTerminal(GameResult::DRAW);
-      return;
-    }
-
     const auto repetitions = history->Last().GetRepetitions();
     // Mark two-fold repetitions as draws according to settings.
     // Depth starts with 1 at root, so number of plies in PV is depth - 1.
     if (repetitions >= 2) {
-      node->MakeTerminal(GameResult::DRAW);
+      node->MakeTerminal(history->RuleJudge());
       return;
     } else if (repetitions == 1 && depth - 1 >= 4 &&
                params_.GetTwoFoldDraws() &&
                depth - 1 >= history->Last().GetPliesSincePrevRepetition()) {
       const auto cycle_length = history->Last().GetPliesSincePrevRepetition();
       // use plies since first repetition as moves left; exact if forced draw.
-      node->MakeTerminal(GameResult::DRAW, (float)cycle_length,
+      node->MakeTerminal(history->RuleJudge(), (float)cycle_length,
                          Node::Terminal::TwoFold);
       return;
     }
 
-    // Neither by-position or by-rule termination, but maybe it's a TB position.
-    if (search_->syzygy_tb_ && !search_->root_is_in_dtz_ &&
-        board.castlings().no_legal_castle() &&
-        history->Last().GetRule50Ply() == 0 &&
-        (board.ours() | board.theirs()).count() <=
-            search_->syzygy_tb_->max_cardinality()) {
-      ProbeState state;
-      const WDLScore wdl =
-          search_->syzygy_tb_->probe_wdl(history->Last(), &state);
-      // Only fail state means the WDL is wrong, probe_wdl may produce correct
-      // result with a stat other than OK.
-      if (state != FAIL) {
-        // TB nodes don't have NN evaluation, assign M from parent node.
-        float m = 0.0f;
-        // Need a lock to access parent, in case MakeSolid is in progress.
-        {
-          SharedMutex::SharedLock lock(search_->nodes_mutex_);
-          auto parent = node->GetParent();
-          if (parent) {
-            m = std::max(0.0f, parent->GetM() - 1.0f);
-          }
-        }
-        // If the colors seem backwards, check the checkmate check above.
-        if (wdl == WDL_WIN) {
-          node->MakeTerminal(GameResult::BLACK_WON, m,
-                             Node::Terminal::Tablebase);
-        } else if (wdl == WDL_LOSS) {
-          node->MakeTerminal(GameResult::WHITE_WON, m,
-                             Node::Terminal::Tablebase);
-        } else {  // Cursed wins and blessed losses count as draws.
-          node->MakeTerminal(GameResult::DRAW, m, Node::Terminal::Tablebase);
-        }
-        search_->tb_hits_.fetch_add(1, std::memory_order_acq_rel);
-        return;
-      }
+    if (!board.HasMatingMaterial()) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
+    }
+
+    if (history->Last().GetRule50Ply() >= 120) {
+      node->MakeTerminal(GameResult::DRAW);
+      return;
     }
   }
 

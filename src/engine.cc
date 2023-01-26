@@ -46,16 +46,8 @@ const OptionId kLogFileId{"logfile", "LogFile",
                           "Write log to that file. Special value <stderr> to "
                           "output the log to the console.",
                           'l'};
-const OptionId kSyzygyTablebaseId{
-    "syzygy-paths", "SyzygyPath",
-    "List of Syzygy tablebase directories, list entries separated by system "
-    "separator (\";\" for Windows, \":\" for Linux).",
-    's'};
 const OptionId kPonderId{"ponder", "Ponder",
                          "This option is ignored. Here to please chess GUIs."};
-const OptionId kUciChess960{
-    "chess960", "UCI_Chess960",
-    "Castling moves are encoded as \"king takes rook\"."};
 const OptionId kShowWDL{"show-wdl", "UCI_ShowWDL",
                         "Show win, draw and lose probability."};
 const OptionId kShowMovesleft{"show-movesleft", "UCI_ShowMovesLeft",
@@ -75,7 +67,7 @@ MoveList StringsToMovelist(const std::vector<std::string>& moves,
     const auto legal_moves = board.GenerateLegalMoves();
     const auto end = legal_moves.end();
     for (const auto& move : moves) {
-      const auto m = board.GetModernMove({move, board.flipped()});
+      const auto m = Move(move, board.flipped());
       if (std::find(legal_moves.begin(), end, m) != end) result.emplace_back(m);
     }
     if (result.empty()) throw Exception("No legal searchmoves.");
@@ -99,11 +91,9 @@ void EngineController::PopulateOptions(OptionsParser* options) {
   options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
   SearchParams::Populate(options);
 
-  options->Add<StringOption>(kSyzygyTablebaseId);
   // Add "Ponder" option to signal to GUIs that we support pondering.
   // This option is currently not used by lc0 in any way.
   options->Add<BoolOption>(kPonderId) = true;
-  options->Add<BoolOption>(kUciChess960) = false;
   options->Add<BoolOption>(kShowWDL) = false;
   options->Add<BoolOption>(kShowMovesleft) = false;
 
@@ -123,19 +113,6 @@ void EngineController::ResetMoveTimer() {
 // Updates values from Uci options.
 void EngineController::UpdateFromUciOptions() {
   SharedLock lock(busy_mutex_);
-
-  // Syzygy tablebases.
-  std::string tb_paths = options_.Get<std::string>(kSyzygyTablebaseId);
-  if (!tb_paths.empty() && tb_paths != tb_paths_) {
-    syzygy_tb_ = std::make_unique<SyzygyTablebase>();
-    CERR << "Loading Syzygy tablebases from " << tb_paths;
-    if (!syzygy_tb_->init(tb_paths)) {
-      CERR << "Failed to load Syzygy tablebases!";
-      syzygy_tb_ = nullptr;
-    } else {
-      tb_paths_ = tb_paths;
-    }
-  }
 
   // Network.
   const auto network_configuration =
@@ -276,12 +253,6 @@ void EngineController::Go(const GoParams& params) {
     SetupPosition(current_position_.fen, current_position_.moves);
   }
 
-  if (!options_.Get<bool>(kUciChess960)) {
-    // Remap FRC castling to legacy castling.
-    responder = std::make_unique<Chess960Transformer>(
-        std::move(responder), tree_->HeadPosition().GetBoard());
-  }
-
   if (!options_.Get<bool>(kShowWDL)) {
     // Strip WDL information from the response.
     responder = std::make_unique<WDLResponseFilter>(std::move(responder));
@@ -297,7 +268,7 @@ void EngineController::Go(const GoParams& params) {
       *tree_, network_.get(), std::move(responder),
       StringsToMovelist(params.searchmoves, tree_->HeadPosition().GetBoard()),
       *move_start_time_, std::move(stopper), params.infinite || params.ponder,
-      options_, &cache_, syzygy_tb_.get());
+      options_, &cache_);
 
   LOGFILE << "Timer started at "
           << FormatTime(SteadyClockToSystemClock(*move_start_time_));

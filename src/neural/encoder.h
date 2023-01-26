@@ -34,7 +34,7 @@
 namespace lczero {
 
 constexpr int kMoveHistory = 8;
-constexpr int kPlanesPerBoard = 13;
+constexpr int kPlanesPerBoard = 15;
 constexpr int kAuxPlaneBase = kPlanesPerBoard * kMoveHistory;
 
 enum class FillEmptyHistory { NO, FEN_ONLY, ALWAYS };

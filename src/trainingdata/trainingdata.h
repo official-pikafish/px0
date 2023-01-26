@@ -37,14 +37,9 @@ namespace lczero {
 struct V6TrainingData {
   uint32_t version;
   uint32_t input_format;
-  float probabilities[1858];
-  uint64_t planes[104];
-  uint8_t castling_us_ooo;
-  uint8_t castling_us_oo;
-  uint8_t castling_them_ooo;
-  uint8_t castling_them_oo;
-  // For input type 3 contains enpassant column as a mask.
-  uint8_t side_to_move_or_enpassant;
+  float probabilities[2062];
+  __uint128_t planes[120];
+  uint8_t side_to_move;
   uint8_t rule50_count;
   // Bitfield with the following allocation:
   //  bit 7: side to move (input type 3)
@@ -52,8 +47,8 @@ struct V6TrainingData {
   //  bit 5: game adjudicated (v6)
   //  bit 4: max game length exceeded (v6)
   //  bit 3: best_q is for proven best move (v6)
-  //  bit 2: transpose transform (input type 3)
-  //  bit 1: mirror transform (input type 3)
+  //  bit 2: not used
+  //  bit 1: not used
   //  bit 0: flip transform (input type 3)
   // In versions prior to v5 this spot contained an unused move count field.
   uint8_t invariance_info;
@@ -83,7 +78,7 @@ struct V6TrainingData {
   float policy_kld;
   uint32_t reserved;
 } PACKED_STRUCT;
-static_assert(sizeof(V6TrainingData) == 8356, "Wrong struct size");
+static_assert(sizeof(V6TrainingData) == 10256, "Wrong struct size");
 
 #pragma pack(pop)
 

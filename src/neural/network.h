@@ -35,19 +35,21 @@
 
 namespace lczero {
 
-const int kInputPlanes = 112;
+const int kInputPlanes = 124;
 
-// All input planes are 64 value vectors, every element of which is either
+constexpr __uint128_t kAllSquares = __uint128_t(0x0000000003FFFFFFULL) << 64 | 0xFFFFFFFFFFFFFFFFULL;
+
+// All input planes are 90 value vectors, every element of which is either
 // 0 or some value, unique for the plane. Therefore, input is defined as
 // a bitmask showing where to set the value, and the value itself.
 struct InputPlane {
   InputPlane() = default;
-  void SetAll() { mask = ~0ull; }
+  void SetAll() { mask = kAllSquares; }
   void Fill(float val) {
     SetAll();
     value = val;
   }
-  std::uint64_t mask = 0ull;
+  __uint128_t mask = 0ull;
   float value = 1.0f;
 };
 using InputPlanes = std::vector<InputPlane>;

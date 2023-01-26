@@ -228,8 +228,8 @@ void UciLoop::SendResponses(const std::vector<std::string>& responses) {
 }
 
 void UciLoop::SendId() {
-  SendResponse("id name Lc0 v" + GetVersionStr());
-  SendResponse("id author The LCZero Authors.");
+  SendResponse("id name Px0 v" + GetVersionStr());
+  SendResponse("id author The PXZero Authors.");
 }
 
 void UciLoop::SendBestMove(const BestMoveInfo& move) {

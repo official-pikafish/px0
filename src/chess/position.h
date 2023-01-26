@@ -59,7 +59,7 @@ class Position {
     cycle_length_ = cycle_length;
   }
 
-  // Number of ply with no captures and pawn moves.
+  // Number of ply with no captures.
   int GetRule50Ply() const { return rule50_ply_; }
 
   // Gets board from the point of view of player to move.
@@ -79,7 +79,7 @@ class Position {
   // The board from the point of view of opponent.
   ChessBoard them_board_;
 
-  // How many half-moves without capture or pawn move was there.
+  // How many half-moves without capture was there.
   int rule50_ply_ = 0;
   // How many repetitions this position had before. For new positions it's 0.
   int repetitions_;
@@ -134,6 +134,9 @@ class PositionHistory {
 
   // Pops last move from history.
   void Pop() { positions_.pop_back(); }
+
+  // Check whether the position sequence can be judge be rule (result is from black's perspective)
+  GameResult RuleJudge() const;
 
   // Finds the endgame state (win/lose/draw/nothing) for the last position.
   GameResult ComputeGameResult() const;

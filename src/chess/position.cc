@@ -26,6 +26,7 @@
 */
 
 #include "chess/position.h"
+#include "utils/exception.h"
 
 #include <cassert>
 #include <cctype>
@@ -38,18 +39,20 @@ namespace {
 char GetPieceAt(const lczero::ChessBoard& board, int row, int col) {
   char c = '\0';
   if (board.ours().get(row, col) || board.theirs().get(row, col)) {
-    if (board.pawns().get(row, col)) {
+    if (board.rooks().get(row, col)) {
+      c = 'R';
+    } else if (board.advisors().get(row, col)) {
+      c = 'A';
+    } else if (board.cannons().get(row, col)) {
+      c = 'C';
+    } else if(board.pawns().get(row, col)) {
       c = 'P';
-    } else if (board.kings().get(row, col)) {
-      c = 'K';
+    } else if (board.knights().get(row, col)) {
+      c = 'N';
     } else if (board.bishops().get(row, col)) {
       c = 'B';
-    } else if (board.queens().get(row, col)) {
-      c = 'Q';
-    } else if (board.rooks().get(row, col)) {
-      c = 'R';
-    } else {
-      c = 'N';
+    } else if (board.kings().get(row, col)) {
+      c = 'K';
     }
     if (board.theirs().get(row, col)) {
       c = std::tolower(c);  // Capitals are for white.
@@ -93,17 +96,15 @@ GameResult PositionHistory::ComputeGameResult() const {
   const auto& board = Last().GetBoard();
   auto legal_moves = board.GenerateLegalMoves();
   if (legal_moves.empty()) {
-    if (board.IsUnderCheck()) {
-      // Checkmate.
-      return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
-    }
-    // Stalemate.
-    return GameResult::DRAW;
+    return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
   }
 
+  if (Last().GetRepetitions() >= 2) {
+    GameResult result = RuleJudge();
+    return IsBlackToMove() ? result : -result;
+  }
   if (!board.HasMatingMaterial()) return GameResult::DRAW;
-  if (Last().GetRule50Ply() >= 100) return GameResult::DRAW;
-  if (Last().GetRepetitions() >= 2) return GameResult::DRAW;
+  if (Last().GetRule50Ply() >= 120) return GameResult::DRAW;
 
   return GameResult::UNDECIDED;
 }
@@ -122,6 +123,40 @@ void PositionHistory::Append(Move m) {
   int cycle_length;
   int repetitions = ComputeLastMoveRepetitions(&cycle_length);
   positions_.back().SetRepetitions(repetitions, cycle_length);
+}
+
+GameResult PositionHistory::RuleJudge() const {
+  const auto& last = positions_.back();
+  // TODO(crem) implement hash/cache based solution.
+  if (last.GetRule50Ply() < 4) return GameResult::UNDECIDED;
+
+  bool checkThem = last.GetBoard().IsUnderCheck();
+  bool checkUs = positions_[size(positions_) - 2].GetBoard().IsUnderCheck();
+  uint16_t chaseThem = last.GetThemBoard().Chased() & positions_[size(positions_) - 2].GetBoard().Chased();
+  uint16_t chaseUs = positions_[size(positions_) - 2].GetThemBoard().Chased() &
+                     positions_[size(positions_) - 3].GetBoard().Chased();
+
+  for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
+    const auto& pos = positions_[idx];
+    checkThem &= pos.GetBoard().IsUnderCheck();
+
+    if (pos.GetBoard() == last.GetBoard() && pos.GetRepetitions() == 0) {
+      return (checkThem || checkUs) ? (!checkUs ? GameResult::WHITE_WON : !checkThem ? GameResult::BLACK_WON : GameResult::DRAW)
+           : (chaseThem || chaseUs) ? (!chaseUs ? GameResult::WHITE_WON : !chaseThem ? GameResult::BLACK_WON : GameResult::DRAW)
+           : GameResult::DRAW;
+    }
+
+    if (idx - 1 >= 0) {
+      checkUs &= positions_[idx - 1].GetBoard().IsUnderCheck();
+      chaseThem &= pos.GetThemBoard().Chased() & positions_[idx - 1].GetBoard().Chased();
+      ChaseMap chase = positions_[idx - 1].GetThemBoard().Chased();
+      if (idx - 2 >= 0)
+        chase = chase & positions_[idx - 2].GetBoard().Chased();
+      chaseUs &= chase;
+    }
+  }
+
+  throw Exception("Judging non-repetition move sequence");
 }
 
 int PositionHistory::ComputeLastMoveRepetitions(int* cycle_length) const {
@@ -163,9 +198,9 @@ uint64_t PositionHistory::HashLast(int positions) const {
 std::string GetFen(const Position& pos) {
   std::string result;
   const ChessBoard& board = pos.GetWhiteBoard();
-  for (int row = 7; row >= 0; --row) {
+  for (int row = 9; row >= 0; --row) {
     int emptycounter = 0;
-    for (int col = 0; col < 8; ++col) {
+    for (int col = 0; col < 9; ++col) {
       char piece = GetPieceAt(board, row, col);
       if (emptycounter > 0 && piece) {
         result += std::to_string(emptycounter);
@@ -180,15 +215,8 @@ std::string GetFen(const Position& pos) {
     if (emptycounter > 0) result += std::to_string(emptycounter);
     if (row > 0) result += "/";
   }
-  std::string enpassant = "-";
-  if (!board.en_passant().empty()) {
-    auto sq = *board.en_passant().begin();
-    enpassant = BoardSquare(pos.IsBlackToMove() ? 2 : 5, sq.col()).as_string();
-  }
   result += pos.IsBlackToMove() ? " b" : " w";
-  result += " " + board.castlings().as_string();
-  result += " " + enpassant;
-  result += " " + std::to_string(pos.GetRule50Ply());
+  result += " - - " + std::to_string(pos.GetRule50Ply());
   result += " " + std::to_string(
                       (pos.GetGamePly() + (pos.IsBlackToMove() ? 1 : 2)) / 2);
   return result;

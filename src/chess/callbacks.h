@@ -237,7 +237,6 @@ class Chess960Transformer : public TransformingUciResponder {
                                       std::vector<Move>* moves) {
     for (auto& move : *moves) {
       if (pos.flipped()) move.Mirror();
-      move = pos.GetLegacyMove(move);
       pos.ApplyMove(move);
       if (pos.flipped()) move.Mirror();
       pos.Mirror();

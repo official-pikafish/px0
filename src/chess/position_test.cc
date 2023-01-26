@@ -30,18 +30,14 @@ TEST(Position, SetFenGetFen) {
   std::vector<Position> positions;
   ChessBoard board;
   std::vector<std::string> source_fens = {
-      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 1 1",
-      // has en_passant space e3 - black to move
-      "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq e3 1 1",
-      // has en_passant space c6 - white to move
-      "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2",
-      "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 1 1",
-      "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
-      "3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30",
-      "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-      "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 "
-      "10",
-      "8/8/8/4k3/8/8/2K5/8 w - - 0 1", "8/8/8/4k3/1N6/8/2K5/8 w - - 0 1"};
+      "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1",
+      "r1ba1a3/4kn3/2n1b4/pNp1p1p1p/4c4/6P2/P1P2R2P/1CcC5/9/2BAKAB2 w - - 1 1",
+      "1cbak4/9/n2a5/2p1p3p/5cp2/2n2N3/6PCP/3AB4/2C6/3A1K1N1 w - - 0 1",
+      "5a3/3k5/3aR4/9/5r3/5n3/9/3A1A3/5K3/2BC2B2 w - - 2 30",
+      "CRN1k1b2/3ca4/4ba3/9/2nr5/9/9/4B4/4A4/4KA3 w - - 1 8",
+      "R1N1k1b2/9/3aba3/9/2nr5/2B6/9/4B4/4A4/4KA3 w - - 0 10",
+      "C1nNk4/9/9/9/9/9/n1pp5/B3C4/9/3A1K3 w - - 0 1",
+      "4ka3/4a4/9/9/4N4/p8/9/4C3c/7n1/2BK5 w - - 0 1"};
   for (size_t i = 0; i < source_fens.size(); i++) {
     board.Clear();
     PositionHistory history;
@@ -56,109 +52,163 @@ TEST(Position, SetFenGetFen) {
   }
 }
 
-// https://github.com/LeelaChessZero/lc0/issues/209
-TEST(PositionHistory, ComputeLastMoveRepetitionsWithoutLegalEnPassant) {
+TEST(PositionHistory, ComputeLastMoveRepetitions1) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
   int history_idx = history.GetLength() - 1;
   const Position& repeated_position = history.GetPositionAt(history_idx);
   EXPECT_EQ(repeated_position.GetRepetitions(), 1);
 }
 
-TEST(PositionHistory, ComputeLastMoveRepetitionsWithLegalEnPassant) {
+TEST(PositionHistory, ComputeLastMoveRepetitions2) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP2p1/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
   int history_idx = history.GetLength() - 1;
   const Position& repeated_position = history.GetPositionAt(history_idx);
-  EXPECT_EQ(repeated_position.GetRepetitions(), 0);
+  EXPECT_EQ(repeated_position.GetRepetitions(), 2);
 }
 
 TEST(PositionHistory, DidRepeatSinceLastZeroingMoveCurent) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
+  history.Append(Move("g6h6", true));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
 TEST(PositionHistory, DidRepeatSinceLastZeroingMoveBefore) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6rC1/9/9/9/5R3/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
-  history.Append(Move("d7e7", true));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("f2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
 TEST(PositionHistory, DidRepeatSinceLastZeroingMoveOlder) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6rC1/9/9/9/5R3/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
-  history.Append(Move("d7e7", true));
-  history.Append(Move("c4b4", false));
+  history.Append(Move("g6b6", true));
+  history.Append(Move("f2b2", false));
+  history.Append(Move("b6h6", true));
+  history.Append(Move("b2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
 TEST(PositionHistory, DidRepeatSinceLastZeroingMoveBeforeZero) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
-  history.Append(Move("d7h7", true));
-  history.Append(Move("c4d3", false));
-  history.Append(Move("h7d7", true));
-  history.Append(Move("d3c4", false));
-  history.Append(Move("d7e7", true));
-  history.Append(Move("c4b4", false));
-  history.Append(Move("h5h4", true));
+  history.Append(Move("g6f6", true));
+  history.Append(Move("g2f2", false));
+  history.Append(Move("f6g6", true));
+  history.Append(Move("f2g2", false));
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
   EXPECT_FALSE(history.DidRepeatSinceLastZeroingMove());
 }
 
 TEST(PositionHistory, DidRepeatSinceLastZeroingMoveNeverRepeated) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3b4/rp1r1k2/8/1RP2p1p/p1KP4/P3P2P/5P2/1R2B3 b - - 2 30");
+  board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("f7f8", true));
-  history.Append(Move("f2f4", false));
+  history.Append(Move("g6c6", true));
+  history.Append(Move("g2f2", false));
   EXPECT_FALSE(history.DidRepeatSinceLastZeroingMove());
+}
+
+TEST(PositionHistory, RuleJudgeWhiteChase) {
+  ChessBoard board;
+  PositionHistory history;
+  board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("g6h6", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("h6g6", true));
+  history.Append(Move("h2g2", false));
+  EXPECT_FALSE(history.RuleJudge() == GameResult::BLACK_WON);
+}
+
+TEST(PositionHistory, RuleJudgeBlackChase) {
+  ChessBoard board;
+  PositionHistory history;
+  board.SetFromFen("3k5/9/7r1/9/9/9/9/6C2/9/5K3 b - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("h7g7", true));
+  history.Append(Move("g2h2", false));
+  history.Append(Move("g7h7", true));
+  history.Append(Move("h2g2", false));
+  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
+}
+
+TEST(PositionHistory, RuleJudgeWhiteCheck) {
+  ChessBoard board;
+  PositionHistory history;
+  board.SetFromFen("3k5/9/9/9/9/9/9/3R5/9/5K3 b - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("d9e9", true));
+  history.Append(Move("d2e2", false));
+  history.Append(Move("e9d9", true));
+  history.Append(Move("e2d2", false));
+  EXPECT_FALSE(history.RuleJudge() == GameResult::BLACK_WON);
+}
+
+TEST(PositionHistory, RuleJudgeBlackCheck) {
+  ChessBoard board;
+  PositionHistory history;
+  board.SetFromFen("3k5/9/4r4/9/9/9/9/9/9/5K3 b - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("e7f7", true));
+  history.Append(Move("f0e0", false));
+  history.Append(Move("f7e7", true));
+  history.Append(Move("e0f0", false));
+  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
+}
+
+TEST(PositionHistory, RuleJudgeDraw) {
+  ChessBoard board;
+  PositionHistory history;
+  board.SetFromFen("3k5/9/6r2/9/9/9/9/9/6R2/5K3 b - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("g7h7", true));
+  history.Append(Move("g1h1", false));
+  history.Append(Move("h7g7", true));
+  history.Append(Move("h1g1", false));
+  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
 }
 
 }  // namespace lczero

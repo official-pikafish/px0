@@ -22,8 +22,6 @@
 
 namespace lczero {
 
-auto kAllSquaresMask = std::numeric_limits<std::uint64_t>::max();
-
 TEST(EncodePositionForNN, EncodeStartPosition) {
   ChessBoard board;
   PositionHistory history;
@@ -34,252 +32,71 @@ TEST(EncodePositionForNN, EncodeStartPosition) {
       EncodePositionForNN(pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
                           history, 8, FillEmptyHistory::NO, nullptr);
 
-  InputPlane our_pawns_plane = encoded_planes[0];
+  InputPlane our_rooks_plane = encoded_planes[0];
+  EXPECT_EQ(our_rooks_plane.mask, 1ull | (1ull << 8));
+  EXPECT_EQ(our_rooks_plane.value, 1.0f);
+
+  InputPlane our_advisors_plane = encoded_planes[1];
+  EXPECT_EQ(our_advisors_plane.mask, (1ull << 3) | (1ull << 5));
+  EXPECT_EQ(our_advisors_plane.value, 1.0f);
+
+  InputPlane our_cannons_plane = encoded_planes[2];
+  EXPECT_EQ(our_cannons_plane.mask, (1ull << 19) | (1ull << 25));
+  EXPECT_EQ(our_cannons_plane.value, 1.0f);
+
+  InputPlane our_pawns_plane = encoded_planes[3];
   auto our_pawns_mask = 0ull;
-  for (auto i = 0; i < 8; i++) {
-    // First pawn is at square a2 (position 8)
-    // Last pawn is at square h2 (position 8 + 7 = 15)
-    our_pawns_mask |= 1ull << (8 + i);
+  for (auto i = 0; i < 10; i += 2) {
+    // First pawn is at square a3 (position 27)
+    // Last pawn is at square i3 (position 27 + 8 = 35)
+    our_pawns_mask |= __uint128_t(1) << (27 + i);
   }
   EXPECT_EQ(our_pawns_plane.mask, our_pawns_mask);
   EXPECT_EQ(our_pawns_plane.value, 1.0f);
 
-  InputPlane our_knights_plane = encoded_planes[1];
-  EXPECT_EQ(our_knights_plane.mask, (1ull << 1) | (1ull << 6));
+  InputPlane our_knights_plane = encoded_planes[4];
+  EXPECT_EQ(our_knights_plane.mask, (1ull << 1) | (1ull << 7));
   EXPECT_EQ(our_knights_plane.value, 1.0f);
 
-  InputPlane our_bishops_plane = encoded_planes[2];
-  EXPECT_EQ(our_bishops_plane.mask, (1ull << 2) | (1ull << 5));
+  InputPlane our_bishops_plane = encoded_planes[5];
+  EXPECT_EQ(our_bishops_plane.mask, (1ull << 2) | (1ull << 6));
   EXPECT_EQ(our_bishops_plane.value, 1.0f);
 
-  InputPlane our_rooks_plane = encoded_planes[3];
-  EXPECT_EQ(our_rooks_plane.mask, 1ull | (1ull << 7));
-  EXPECT_EQ(our_rooks_plane.value, 1.0f);
-
-  InputPlane our_queens_plane = encoded_planes[4];
-  EXPECT_EQ(our_queens_plane.mask, 1ull << 3);
-  EXPECT_EQ(our_queens_plane.value, 1.0f);
-
-  InputPlane our_king_plane = encoded_planes[5];
+  InputPlane our_king_plane = encoded_planes[6];
   EXPECT_EQ(our_king_plane.mask, 1ull << 4);
   EXPECT_EQ(our_king_plane.value, 1.0f);
 
   // Sanity check opponent's pieces
-  InputPlane their_king_plane = encoded_planes[11];
-  auto their_king_row = 7;
+  InputPlane their_king_plane = encoded_planes[13];
+  auto their_king_row = 9;
   auto their_king_col = 4;
   EXPECT_EQ(their_king_plane.mask,
-            1ull << (8 * their_king_row + their_king_col));
+            __uint128_t(1) << (9 * their_king_row + their_king_col));
   EXPECT_EQ(their_king_plane.value, 1.0f);
 
   // Start of game, no history.
   for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
+    for (int j = 0; j < 15; j++) {
+      InputPlane zeroed_history = encoded_planes[15 + i * 15 + j];
       EXPECT_EQ(zeroed_history.mask, 0ull);
     }
   }
 
   // Auxiliary planes
 
-  // It's the start of the game, so all castlings should be allowed.
-  for (auto i = 0; i < 4; i++) {
-    InputPlane can_castle_plane = encoded_planes[13 * 8 + i];
-    EXPECT_EQ(can_castle_plane.mask, kAllSquaresMask);
-    EXPECT_EQ(can_castle_plane.value, 1.0f);
-  }
-
-  InputPlane we_are_black_plane = encoded_planes[13 * 8 + 4];
+  InputPlane we_are_black_plane = encoded_planes[15 * 8];
   EXPECT_EQ(we_are_black_plane.mask, 0ull);
 
-  InputPlane fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
+  InputPlane fifty_move_counter_plane = encoded_planes[15 * 8 + 1];
+  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquares);
   EXPECT_EQ(fifty_move_counter_plane.value, 0.0f);
 
   // We no longer encode the move count, so that plane should be all zeros
-  InputPlane zeroed_move_count_plane = encoded_planes[13 * 8 + 6];
+  InputPlane zeroed_move_count_plane = encoded_planes[15 * 8 + 2];
   EXPECT_EQ(zeroed_move_count_plane.mask, 0ull);
 
-  InputPlane all_ones_plane = encoded_planes[13 * 8 + 7];
-  EXPECT_EQ(all_ones_plane.mask, kAllSquaresMask);
-  EXPECT_EQ(all_ones_plane.value, 1.0f);
-}
-
-TEST(EncodePositionForNN, EncodeStartPositionFormat2) {
-  ChessBoard board;
-  PositionHistory history;
-  board.SetFromFen(ChessBoard::kStartposFen);
-  history.Reset(board, 0, 1);
-
-  InputPlanes encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CASTLING_PLANE, history, 8,
-      FillEmptyHistory::NO, nullptr);
-
-  InputPlane our_pawns_plane = encoded_planes[0];
-  auto our_pawns_mask = 0ull;
-  for (auto i = 0; i < 8; i++) {
-    // First pawn is at square a2 (position 8)
-    // Last pawn is at square h2 (position 8 + 7 = 15)
-    our_pawns_mask |= 1ull << (8 + i);
-  }
-  EXPECT_EQ(our_pawns_plane.mask, our_pawns_mask);
-  EXPECT_EQ(our_pawns_plane.value, 1.0f);
-
-  InputPlane our_knights_plane = encoded_planes[1];
-  EXPECT_EQ(our_knights_plane.mask, (1ull << 1) | (1ull << 6));
-  EXPECT_EQ(our_knights_plane.value, 1.0f);
-
-  InputPlane our_bishops_plane = encoded_planes[2];
-  EXPECT_EQ(our_bishops_plane.mask, (1ull << 2) | (1ull << 5));
-  EXPECT_EQ(our_bishops_plane.value, 1.0f);
-
-  InputPlane our_rooks_plane = encoded_planes[3];
-  EXPECT_EQ(our_rooks_plane.mask, 1ull | (1ull << 7));
-  EXPECT_EQ(our_rooks_plane.value, 1.0f);
-
-  InputPlane our_queens_plane = encoded_planes[4];
-  EXPECT_EQ(our_queens_plane.mask, 1ull << 3);
-  EXPECT_EQ(our_queens_plane.value, 1.0f);
-
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 4);
-  EXPECT_EQ(our_king_plane.value, 1.0f);
-
-  // Sanity check opponent's pieces
-  InputPlane their_king_plane = encoded_planes[11];
-  auto their_king_row = 7;
-  auto their_king_col = 4;
-  EXPECT_EQ(their_king_plane.mask,
-            1ull << (8 * their_king_row + their_king_col));
-  EXPECT_EQ(their_king_plane.value, 1.0f);
-
-  // Start of game, no history.
-  for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
-      EXPECT_EQ(zeroed_history.mask, 0ull);
-    }
-  }
-
-  // Auxiliary planes
-
-  // Queen side castling at game start.
-  InputPlane can_castle_plane = encoded_planes[13 * 8 + 0];
-  EXPECT_EQ(can_castle_plane.mask, 1ull | (1ull << 56));
-  EXPECT_EQ(can_castle_plane.value, 1.0f);
-  // king side castling at game start.
-  can_castle_plane = encoded_planes[13 * 8 + 1];
-  EXPECT_EQ(can_castle_plane.mask, 1ull << 7 | (1ull << 63));
-  EXPECT_EQ(can_castle_plane.value, 1.0f);
-
-  // Zeroed castling planes.
-  InputPlane zeroed_castling_plane = encoded_planes[13 * 8 + 2];
-  EXPECT_EQ(zeroed_castling_plane.mask, 0ull);
-  zeroed_castling_plane = encoded_planes[13 * 8 + 3];
-  EXPECT_EQ(zeroed_castling_plane.mask, 0ull);
-
-  InputPlane we_are_black_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(we_are_black_plane.mask, 0ull);
-
-  InputPlane fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
-  EXPECT_EQ(fifty_move_counter_plane.value, 0.0f);
-
-  // We no longer encode the move count, so that plane should be all zeros
-  InputPlane zeroed_move_count_plane = encoded_planes[13 * 8 + 6];
-  EXPECT_EQ(zeroed_move_count_plane.mask, 0ull);
-
-  InputPlane all_ones_plane = encoded_planes[13 * 8 + 7];
-  EXPECT_EQ(all_ones_plane.mask, kAllSquaresMask);
-  EXPECT_EQ(all_ones_plane.value, 1.0f);
-}
-
-TEST(EncodePositionForNN, EncodeStartPositionFormat3) {
-  ChessBoard board;
-  PositionHistory history;
-  board.SetFromFen(ChessBoard::kStartposFen);
-  history.Reset(board, 0, 1);
-
-  InputPlanes encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, nullptr);
-
-  InputPlane our_pawns_plane = encoded_planes[0];
-  auto our_pawns_mask = 0ull;
-  for (auto i = 0; i < 8; i++) {
-    // First pawn is at square a2 (position 8)
-    // Last pawn is at square h2 (position 8 + 7 = 15)
-    our_pawns_mask |= 1ull << (8 + i);
-  }
-  EXPECT_EQ(our_pawns_plane.mask, our_pawns_mask);
-  EXPECT_EQ(our_pawns_plane.value, 1.0f);
-
-  InputPlane our_knights_plane = encoded_planes[1];
-  EXPECT_EQ(our_knights_plane.mask, (1ull << 1) | (1ull << 6));
-  EXPECT_EQ(our_knights_plane.value, 1.0f);
-
-  InputPlane our_bishops_plane = encoded_planes[2];
-  EXPECT_EQ(our_bishops_plane.mask, (1ull << 2) | (1ull << 5));
-  EXPECT_EQ(our_bishops_plane.value, 1.0f);
-
-  InputPlane our_rooks_plane = encoded_planes[3];
-  EXPECT_EQ(our_rooks_plane.mask, 1ull | (1ull << 7));
-  EXPECT_EQ(our_rooks_plane.value, 1.0f);
-
-  InputPlane our_queens_plane = encoded_planes[4];
-  EXPECT_EQ(our_queens_plane.mask, 1ull << 3);
-  EXPECT_EQ(our_queens_plane.value, 1.0f);
-
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 4);
-  EXPECT_EQ(our_king_plane.value, 1.0f);
-
-  // Sanity check opponent's pieces
-  InputPlane their_king_plane = encoded_planes[11];
-  auto their_king_row = 7;
-  auto their_king_col = 4;
-  EXPECT_EQ(their_king_plane.mask,
-            1ull << (8 * their_king_row + their_king_col));
-  EXPECT_EQ(their_king_plane.value, 1.0f);
-
-  // Start of game, no history.
-  for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
-      EXPECT_EQ(zeroed_history.mask, 0ull);
-    }
-  }
-
-  // Auxiliary planes
-
-  // Queen side castling at game start.
-  InputPlane can_castle_plane = encoded_planes[13 * 8 + 0];
-  EXPECT_EQ(can_castle_plane.mask, 1ull | (1ull << 56));
-  EXPECT_EQ(can_castle_plane.value, 1.0f);
-  // king side castling at game start.
-  can_castle_plane = encoded_planes[13 * 8 + 1];
-  EXPECT_EQ(can_castle_plane.mask, 1ull << 7 | (1ull << 63));
-  EXPECT_EQ(can_castle_plane.value, 1.0f);
-
-  // Zeroed castling planes.
-  InputPlane zeroed_castling_plane = encoded_planes[13 * 8 + 2];
-  EXPECT_EQ(zeroed_castling_plane.mask, 0ull);
-  zeroed_castling_plane = encoded_planes[13 * 8 + 3];
-  EXPECT_EQ(zeroed_castling_plane.mask, 0ull);
-
-  InputPlane enpassant_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(enpassant_plane.mask, 0ull);
-
-  InputPlane fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
-  EXPECT_EQ(fifty_move_counter_plane.value, 0.0f);
-
-  // We no longer encode the move count, so that plane should be all zeros
-  InputPlane zeroed_move_count_plane = encoded_planes[13 * 8 + 6];
-  EXPECT_EQ(zeroed_move_count_plane.mask, 0ull);
-
-  InputPlane all_ones_plane = encoded_planes[13 * 8 + 7];
-  EXPECT_EQ(all_ones_plane.mask, kAllSquaresMask);
+  InputPlane all_ones_plane = encoded_planes[15 * 8 + 3];
+  EXPECT_EQ(all_ones_plane.mask, kAllSquares);
   EXPECT_EQ(all_ones_plane.value, 1.0f);
 }
 
@@ -289,75 +106,75 @@ TEST(EncodePositionForNN, EncodeFiftyMoveCounter) {
   board.SetFromFen(ChessBoard::kStartposFen);
   history.Reset(board, 0, 1);
 
-  // 1. Nf3
-  history.Append(Move("g1f3", false));
+  // 1. h2e2
+  history.Append(Move("h2e2", false));
 
   InputPlanes encoded_planes =
       EncodePositionForNN(pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
                           history, 8, FillEmptyHistory::NO, nullptr);
 
-  InputPlane we_are_black_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(we_are_black_plane.mask, kAllSquaresMask);
+  InputPlane we_are_black_plane = encoded_planes[15 * 8];
+  EXPECT_EQ(we_are_black_plane.mask, kAllSquares);
   EXPECT_EQ(we_are_black_plane.value, 1.0f);
 
-  InputPlane fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
+  InputPlane fifty_move_counter_plane = encoded_planes[15 * 8 + 1];
+  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquares);
   EXPECT_EQ(fifty_move_counter_plane.value, 1.0f);
 
-  // 1. Nf3 Nf6
-  history.Append(Move("g8f6", true));
+  // 1. h2e2 h9g7
+  history.Append(Move("h9g7", true));
 
   encoded_planes =
       EncodePositionForNN(pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
                           history, 8, FillEmptyHistory::NO, nullptr);
 
-  we_are_black_plane = encoded_planes[13 * 8 + 4];
+  we_are_black_plane = encoded_planes[15 * 8];
   EXPECT_EQ(we_are_black_plane.mask, 0ull);
 
-  fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
+  fifty_move_counter_plane = encoded_planes[15 * 8 + 1];
+  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquares);
   EXPECT_EQ(fifty_move_counter_plane.value, 2.0f);
 }
 
-TEST(EncodePositionForNN, EncodeFiftyMoveCounterFormat3) {
+TEST(EncodePositionForNN, EncodeFiftyMoveCounterFormat2) {
   ChessBoard board;
   PositionHistory history;
   board.SetFromFen(ChessBoard::kStartposFen);
   history.Reset(board, 0, 1);
 
-  // 1. Nf3
-  history.Append(Move("g1f3", false));
+  // 1. h2e2
+  history.Append(Move("h2e2", false));
 
   InputPlanes encoded_planes = EncodePositionForNN(
       pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
       FillEmptyHistory::NO, nullptr);
 
-  InputPlane enpassant_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(enpassant_plane.mask, 0ull);
+  InputPlane zerod_plane = encoded_planes[15 * 8];
+  EXPECT_EQ(zerod_plane.mask, 0ull);
 
-  InputPlane fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
+  InputPlane fifty_move_counter_plane = encoded_planes[15 * 8 + 1];
+  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquares);
   EXPECT_EQ(fifty_move_counter_plane.value, 1.0f);
 
-  // 1. Nf3 Nf6
-  history.Append(Move("g8f6", true));
+  // 1. h2e2 h9g7
+  history.Append(Move("h9g7", true));
 
   encoded_planes = EncodePositionForNN(
       pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
       FillEmptyHistory::NO, nullptr);
 
-  enpassant_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(enpassant_plane.mask, 0ull);
+  zerod_plane = encoded_planes[15 * 8];
+  EXPECT_EQ(zerod_plane.mask, 0ull);
 
-  fifty_move_counter_plane = encoded_planes[13 * 8 + 5];
-  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquaresMask);
+  fifty_move_counter_plane = encoded_planes[15 * 8 + 1];
+  EXPECT_EQ(fifty_move_counter_plane.mask, kAllSquares);
   EXPECT_EQ(fifty_move_counter_plane.value, 2.0f);
 }
 
-TEST(EncodePositionForNN, EncodeEndGameFormat1) {
+TEST(EncodePositionForNN, EncodeFormat) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3r4/4k3/8/1K6/8/8/8/8 w - - 0 1");
+  board.SetFromFen("3k5/9/9/9/9/9/9/9/9/5K3 w - - 0 1");
   history.Reset(board, 0, 1);
 
   int transform;
@@ -367,139 +184,21 @@ TEST(EncodePositionForNN, EncodeEndGameFormat1) {
 
   EXPECT_EQ(transform, NoTransform);
 
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 33);
+  InputPlane our_king_plane = encoded_planes[6];
+  EXPECT_EQ(our_king_plane.mask, 1ull << 5);
   EXPECT_EQ(our_king_plane.value, 1.0f);
-  InputPlane their_king_plane = encoded_planes[11];
-  EXPECT_EQ(their_king_plane.mask, 1ull << 52);
+  InputPlane their_king_plane = encoded_planes[13];
+  EXPECT_EQ(their_king_plane.mask, __uint128_t(1) << 84);
   EXPECT_EQ(their_king_plane.value, 1.0f);
 }
 
-TEST(EncodePositionForNN, EncodeEndGameFormat3) {
+TEST(EncodePositionForNN, EncodeFormat2) {
   ChessBoard board;
   PositionHistory history;
-  board.SetFromFen("3r4/4k3/8/1K6/8/8/8/8 w - - 0 1");
+  board.SetFromFen("5k3/9/9/9/9/9/9/9/9/3K5 w - - 0 1");
   history.Reset(board, 0, 1);
 
-  int transform;
-  InputPlanes encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, &transform);
-
-  EXPECT_EQ(transform, FlipTransform | MirrorTransform | TransposeTransform);
-
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 12);
-  EXPECT_EQ(our_king_plane.value, 1.0f);
-  InputPlane their_king_plane = encoded_planes[11];
-  EXPECT_EQ(their_king_plane.mask, 1ull << 38);
-  EXPECT_EQ(their_king_plane.value, 1.0f);
-}
-
-TEST(EncodePositionForNN, EncodeEndGameKingOnDiagonalFormat3) {
-  ChessBoard board;
-  PositionHistory history;
-  board.SetFromFen("3r4/4k3/2K5/8/8/8/8/8 w - - 0 1");
-  history.Reset(board, 0, 1);
-
-  int transform;
-  InputPlanes encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, &transform);
-
-  // After mirroring transforms, our king is on diagonal and other pieces are
-  // all below the diagonal, so transposing will increase the value of ours |
-  // theirs.
-  EXPECT_EQ(transform, FlipTransform | MirrorTransform);
-
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 21);
-  EXPECT_EQ(our_king_plane.value, 1.0f);
-  InputPlane their_king_plane = encoded_planes[11];
-  EXPECT_EQ(their_king_plane.mask, 1ull << 11);
-  EXPECT_EQ(their_king_plane.value, 1.0f);
-}
-
-TEST(EncodePositionForNN, EncodeEnpassantFormat3) {
-  ChessBoard board;
-  PositionHistory history;
-  board.SetFromFen(ChessBoard::kStartposFen);
-  history.Reset(board, 0, 1);
-  // Move to en passant.
-  history.Append(Move("e2e4", false));
-  history.Append(Move("g2g3", false));
-  history.Append(Move("e4e5", false));
-  history.Append(Move("f2f4", false));
-
-  InputPlanes encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, nullptr);
-
-  InputPlane enpassant_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(enpassant_plane.mask, 1ull << 61);
-
-  // Pawn move, no history.
-  for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
-      EXPECT_EQ(zeroed_history.mask, 0ull);
-    }
-  }
-
-  // Boring move.
-  history.Append(Move("g1f3", false));
-
-  encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, nullptr);
-
-  // No more en passant bit.
-  enpassant_plane = encoded_planes[13 * 8 + 4];
-  EXPECT_EQ(enpassant_plane.mask, 0ull);
-
-  // Previous was en passant, no history.
-  for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
-      EXPECT_EQ(zeroed_history.mask, 0ull);
-    }
-  }
-
-  // Another boring move.
-  history.Append(Move("g1f3", false));
-
-  encoded_planes = EncodePositionForNN(
-      pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
-      FillEmptyHistory::NO, nullptr);
-
-  // Should be one plane of history.
-  for (int i = 0; i < 7; i++) {
-    for (int j = 0; j < 13; j++) {
-      InputPlane zeroed_history = encoded_planes[13 + i * 13 + j];
-      // 13th plane of first layer is repeats and there are none, so it should
-      // be empty.
-      if (i == 0 && j < 12) {
-        EXPECT_NE(zeroed_history.mask, 0ull);
-      } else {
-        EXPECT_EQ(zeroed_history.mask, 0ull);
-      }
-    }
-  }
-}
-
-TEST(EncodePositionForNN, EncodeEarlyGameFlipFormat3) {
-  ChessBoard board;
-  PositionHistory history;
-  board.SetFromFen(ChessBoard::kStartposFen);
-  history.Reset(board, 0, 1);
-  // Move to break castling and king offside.
-  history.Append(Move("e2e4", false));
-  history.Append(Move("e2e4", false));
-  history.Append(Move("e1e2", false));
-  history.Append(Move("e1e2", false));
-  history.Append(Move("e2d3", false));
   // Their king offside, but not ours.
-
   int transform;
   InputPlanes encoded_planes = EncodePositionForNN(
       pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
@@ -507,14 +206,15 @@ TEST(EncodePositionForNN, EncodeEarlyGameFlipFormat3) {
 
   EXPECT_EQ(transform, NoTransform);
 
-  InputPlane our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 12);
+  InputPlane our_king_plane = encoded_planes[6];
+  EXPECT_EQ(our_king_plane.mask, 1ull << 3);
   EXPECT_EQ(our_king_plane.value, 1.0f);
-  InputPlane their_king_plane = encoded_planes[11];
-  EXPECT_EQ(their_king_plane.mask, 1ull << 43);
+  InputPlane their_king_plane = encoded_planes[13];
+  EXPECT_EQ(their_king_plane.mask, __uint128_t(1) << 86);
   EXPECT_EQ(their_king_plane.value, 1.0f);
 
-  history.Append(Move("e2e3", false));
+  board.SetFromFen("3k5/9/9/9/9/9/9/9/9/5K3 w - - 0 1");
+  history.Reset(board, 0, 1);
 
   // Our king offside, but theirs is not.
   encoded_planes = EncodePositionForNN(
@@ -523,11 +223,11 @@ TEST(EncodePositionForNN, EncodeEarlyGameFlipFormat3) {
 
   EXPECT_EQ(transform, FlipTransform);
 
-  our_king_plane = encoded_planes[5];
-  EXPECT_EQ(our_king_plane.mask, 1ull << 20);
+  our_king_plane = encoded_planes[6];
+  EXPECT_EQ(our_king_plane.mask, 1ull << 3);
   EXPECT_EQ(our_king_plane.value, 1.0f);
-  their_king_plane = encoded_planes[11];
-  EXPECT_EQ(their_king_plane.mask, 1ull << 43);
+  their_king_plane = encoded_planes[13];
+  EXPECT_EQ(their_king_plane.mask, __uint128_t(1) << 86);
   EXPECT_EQ(their_king_plane.value, 1.0f);
 }
 

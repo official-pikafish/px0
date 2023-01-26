@@ -193,7 +193,6 @@ files += [
   'src/selfplay/game.cc',
   'src/selfplay/loop.cc',
   'src/selfplay/tournament.cc',
-  'src/syzygy/syzygy.cc',
   'src/trainingdata/reader.cc',
   'src/trainingdata/trainingdata.cc',
   'src/trainingdata/writer.cc',
@@ -687,11 +686,6 @@ if get_option('gtest')
     executable('optionsparser_test', 'src/utils/optionsparser_test.cc',
     include_directories: includes, link_with: lc0_lib, dependencies: gtest
   ), args: '--gtest_output=xml:optionsparser.xml', timeout: 90)
-
-  test('SyzygyTest',
-    executable('syzygy_test', 'src/syzygy/syzygy_test.cc',
-    include_directories: includes, link_with: lc0_lib, dependencies: gtest
-  ), args: '--gtest_output=xml:syzygy.xml', timeout: 90)
 
   test('EncodePositionForNN',
     executable('encoder_test', 'src/neural/encoder_test.cc', pb_files,

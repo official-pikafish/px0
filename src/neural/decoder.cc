@@ -55,113 +55,62 @@ BoardSquare OldPosition(const InputPlane& prev, BitBoard mask_diff) {
 
 }  // namespace
 
+template <typename... T>
+void MirrorAll(T&... args) {
+  (..., args.Mirror());
+}
+
 void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
                    InputPlanes planes, ChessBoard* board, int* rule50,
                    int* gameply) {
-  auto pawnsOurs = BitBoard(planes[0].mask);
-  auto knightsOurs = BitBoard(planes[1].mask);
-  auto bishopOurs = BitBoard(planes[2].mask);
-  auto rookOurs = BitBoard(planes[3].mask);
-  auto queenOurs = BitBoard(planes[4].mask);
-  auto kingOurs = BitBoard(planes[5].mask);
-  auto pawnsTheirs = BitBoard(planes[6].mask);
-  auto knightsTheirs = BitBoard(planes[7].mask);
-  auto bishopTheirs = BitBoard(planes[8].mask);
-  auto rookTheirs = BitBoard(planes[9].mask);
-  auto queenTheirs = BitBoard(planes[10].mask);
-  auto kingTheirs = BitBoard(planes[11].mask);
-  ChessBoard::Castlings castlings;
-  switch (input_format) {
-    case pblczero::NetworkFormat::InputFormat::INPUT_CLASSICAL_112_PLANE: {
-      if (planes[kAuxPlaneBase + 0].mask != 0) {
-        castlings.set_we_can_000();
-      }
-      if (planes[kAuxPlaneBase + 1].mask != 0) {
-        castlings.set_we_can_00();
-      }
-      if (planes[kAuxPlaneBase + 2].mask != 0) {
-        castlings.set_they_can_000();
-      }
-      if (planes[kAuxPlaneBase + 3].mask != 0) {
-        castlings.set_they_can_00();
-      }
-      break;
-    }
-    case pblczero::NetworkFormat::INPUT_112_WITH_CASTLING_PLANE:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION_HECTOPLIES:
-    case pblczero::NetworkFormat::
-        INPUT_112_WITH_CANONICALIZATION_HECTOPLIES_ARMAGEDDON:
-    case pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION_V2:
-    case pblczero::NetworkFormat::
-        INPUT_112_WITH_CANONICALIZATION_V2_ARMAGEDDON: {
-      int our_queenside = ChessBoard::FILE_A;
-      int their_queenside = ChessBoard::FILE_A;
-      int our_kingside = ChessBoard::FILE_H;
-      int their_kingside = ChessBoard::FILE_H;
-      if (planes[kAuxPlaneBase + 0].mask != 0) {
-        auto mask = planes[kAuxPlaneBase + 0].mask;
-        if ((mask & 0xFFLL) != 0) {
-          our_queenside = GetLowestBit(mask & 0xFFLL);
-          castlings.set_we_can_000();
-        }
-        if (mask >> 56 != 0) {
-          their_queenside = GetLowestBit(mask >> 56);
-          castlings.set_they_can_000();
-        }
-      }
-      if (planes[kAuxPlaneBase + 1].mask != 0) {
-        auto mask = planes[kAuxPlaneBase + 1].mask;
-        if ((mask & 0xFFLL) != 0) {
-          our_kingside = GetLowestBit(mask & 0xFFLL);
-          castlings.set_we_can_00();
-        }
-        if (mask >> 56 != 0) {
-          their_kingside = GetLowestBit(mask >> 56);
-          castlings.set_they_can_00();
-        }
-      }
-      castlings.SetRookPositions(our_queenside, our_kingside, their_queenside,
-                                 their_kingside);
-      break;
-    }
-
-    default:
-      throw Exception("Unsupported input plane encoding " +
-                      std::to_string(input_format));
-  }
+  auto rooksOurs = BitBoard(planes[0].mask);
+  auto advisorsOurs = BitBoard(planes[1].mask);
+  auto cannonsOurs = BitBoard(planes[2].mask);
+  auto pawnsOurs = BitBoard(planes[3].mask);
+  auto knightsOurs = BitBoard(planes[4].mask);
+  auto bishopsOurs = BitBoard(planes[5].mask);
+  auto kingOurs = BitBoard(planes[6].mask);
+  auto rooksTheirs = BitBoard(planes[7].mask);
+  auto advisorsTheirs = BitBoard(planes[8].mask);
+  auto cannonsTheirs = BitBoard(planes[9].mask);
+  auto pawnsTheirs = BitBoard(planes[10].mask);
+  auto knightsTheirs = BitBoard(planes[11].mask);
+  auto bishopsTheirs = BitBoard(planes[12].mask);
+  auto kingTheirs = BitBoard(planes[13].mask);
   std::string fen;
   // Canonical input has no sense of side to move, so we should simply assume
   // the starting position is always white.
   bool black_to_move =
-      !IsCanonicalFormat(input_format) && planes[kAuxPlaneBase + 4].mask != 0;
+      !IsCanonicalFormat(input_format) && planes[kAuxPlaneBase].mask != 0;
   if (black_to_move) {
     // Flip to white perspective rather than side to move perspective.
+    std::swap(rooksOurs, rooksTheirs);
+    std::swap(advisorsOurs, advisorsTheirs);
+    std::swap(cannonsOurs, cannonsTheirs);
     std::swap(pawnsOurs, pawnsTheirs);
     std::swap(knightsOurs, knightsTheirs);
-    std::swap(bishopOurs, bishopTheirs);
-    std::swap(rookOurs, rookTheirs);
-    std::swap(queenOurs, queenTheirs);
+    std::swap(bishopsOurs, bishopsTheirs);
     std::swap(kingOurs, kingTheirs);
-    pawnsOurs.Mirror();
-    pawnsTheirs.Mirror();
-    knightsOurs.Mirror();
-    knightsTheirs.Mirror();
-    bishopOurs.Mirror();
-    bishopTheirs.Mirror();
-    rookOurs.Mirror();
-    rookTheirs.Mirror();
-    queenOurs.Mirror();
-    queenTheirs.Mirror();
-    kingOurs.Mirror();
-    kingTheirs.Mirror();
-    castlings.Mirror();
+    MirrorAll(rooksOurs, advisorsOurs, cannonsOurs, pawnsOurs, knightsOurs, bishopsOurs, kingOurs,
+              rooksTheirs, advisorsTheirs, cannonsTheirs, pawnsTheirs, knightsTheirs, bishopsTheirs, kingTheirs);
   }
-  for (int row = 7; row >= 0; --row) {
+  for (int row = 9; row >= 0; --row) {
     int emptycounter = 0;
-    for (int col = 0; col < 8; ++col) {
+    for (int col = 0; col < 9; ++col) {
       char piece = '\0';
-      if (pawnsOurs.get(row, col)) {
+      if (rooksOurs.get(row, col)) {
+        piece = 'R';
+      } else if (rooksTheirs.get(row, col)) {
+        piece = 'r';
+      } else if (advisorsOurs.get(row, col)) {
+        piece = 'A';
+      } else if (advisorsTheirs.get(row, col)) {
+        piece = 'a';
+      } else if (cannonsOurs.get(row, col)) {
+        piece = 'C';
+      } else if (cannonsTheirs.get(row, col)) {
+        piece = 'c';
+      } else if (pawnsOurs.get(row, col)) {
         piece = 'P';
       } else if (pawnsTheirs.get(row, col)) {
         piece = 'p';
@@ -169,18 +118,10 @@ void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
         piece = 'N';
       } else if (knightsTheirs.get(row, col)) {
         piece = 'n';
-      } else if (bishopOurs.get(row, col)) {
+      } else if (bishopsOurs.get(row, col)) {
         piece = 'B';
-      } else if (bishopTheirs.get(row, col)) {
+      } else if (bishopsTheirs.get(row, col)) {
         piece = 'b';
-      } else if (rookOurs.get(row, col)) {
-        piece = 'R';
-      } else if (rookTheirs.get(row, col)) {
-        piece = 'r';
-      } else if (queenOurs.get(row, col)) {
-        piece = 'Q';
-      } else if (queenTheirs.get(row, col)) {
-        piece = 'q';
       } else if (kingOurs.get(row, col)) {
         piece = 'K';
       } else if (kingTheirs.get(row, col)) {
@@ -201,43 +142,10 @@ void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
   }
   fen += " ";
   fen += black_to_move ? "b" : "w";
-  fen += " ";
-  fen += castlings.as_string();
-  fen += " ";
-  if (IsCanonicalFormat(input_format)) {
-    // Canonical format helpfully has the en passant details ready for us.
-    if (planes[kAuxPlaneBase + 4].mask == 0) {
-      fen += "-";
-    } else {
-      int col = GetLowestBit(planes[kAuxPlaneBase + 4].mask >> 56);
-      fen += BoardSquare(5, col).as_string();
-    }
-  } else {
-    auto pawndiff = BitBoard(planes[6].mask ^ planes[kPlanesPerBoard + 6].mask);
-    // If no pawns then 2 pawns, history isn't filled properly and we shouldn't
-    // try and infer enpassant.
-    if (pawndiff.count() == 2 && planes[kPlanesPerBoard + 6].mask != 0) {
-      auto from =
-          SingleSquare(planes[kPlanesPerBoard + 6].mask & pawndiff.as_int());
-      auto to = SingleSquare(planes[6].mask & pawndiff.as_int());
-      if (from.col() != to.col() || std::abs(from.row() - to.row()) != 2) {
-        fen += "-";
-      } else {
-        // TODO: Ensure enpassant is legal rather than setting it blindly?
-        // Doesn't matter for rescoring use case as only legal moves will be
-        // performed afterwards.
-        fen +=
-            BoardSquare((planes[kAuxPlaneBase + 4].mask != 0) ? 2 : 5, to.col())
-                .as_string();
-      }
-    } else {
-      fen += "-";
-    }
-  }
-  fen += " ";
-  int rule50plane = (int)planes[kAuxPlaneBase + 5].value;
+  fen += " - - ";
+  int rule50plane = (int)planes[kAuxPlaneBase + 1].value;
   if (IsHectopliesFormat(input_format)) {
-    rule50plane = (int)(100.0f * planes[kAuxPlaneBase + 5].value);
+    rule50plane = (int)(100.0f * planes[kAuxPlaneBase + 1].value);
   }
   fen += std::to_string(rule50plane);
   // Reuse the 50 move rule as gameply since we don't know better.
@@ -247,93 +155,46 @@ void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
 }
 
 Move DecodeMoveFromInput(const InputPlanes& planes, const InputPlanes& prior) {
-  auto pawndiff = MaskDiffWithMirror(planes[6], prior[0]);
-  auto knightdiff = MaskDiffWithMirror(planes[7], prior[1]);
-  auto bishopdiff = MaskDiffWithMirror(planes[8], prior[2]);
-  auto rookdiff = MaskDiffWithMirror(planes[9], prior[3]);
-  auto queendiff = MaskDiffWithMirror(planes[10], prior[4]);
-  // Handle Promotion.
-  if (pawndiff.count() == 1) {
-    auto from = SingleSquare(pawndiff);
-    if (knightdiff.count() == 1) {
-      auto to = SingleSquare(knightdiff);
-      return Move(from, to, Move::Promotion::Knight);
-    }
-    if (bishopdiff.count() == 1) {
-      auto to = SingleSquare(bishopdiff);
-      return Move(from, to, Move::Promotion::Bishop);
-    }
-    if (rookdiff.count() == 1) {
-      auto to = SingleSquare(rookdiff);
-      return Move(from, to, Move::Promotion::Rook);
-    }
-    if (queendiff.count() == 1) {
-      auto to = SingleSquare(queendiff);
-      return Move(from, to, Move::Promotion::Queen);
-    }
-    assert(false);
-    return Move();
-  }
-  // check king first as castling moves both king and rook.
-  auto kingdiff = MaskDiffWithMirror(planes[11], prior[5]);
-  if (kingdiff.count() == 2) {
-    if (rookdiff.count() == 2) {
-      auto from = OldPosition(prior[5], kingdiff);
-      auto to = OldPosition(prior[3], rookdiff);
-      return Move(from, to);
-    }
-    auto from = OldPosition(prior[5], kingdiff);
-    auto to = SingleSquare(planes[11].mask & kingdiff.as_int());
-    if (std::abs(from.col() - to.col()) > 1) {
-      // Chess 960 castling can leave the rook in place, but the king has moved
-      // from one side of the rook to the other - thus has gone at least 2
-      // squares, which is impossible for a normal king move. Can't work out the
-      // rook location from rookdiff since its empty, but it is known given the
-      // direction of the king movement and the knowledge that the rook hasn't
-      // moved.
-      if (from.col() > to.col()) {
-        to = BoardSquare(from.row(), to.col() + 1);
-      } else {
-        to = BoardSquare(from.row(), to.col() - 1);
-      }
-    }
-    return Move(from, to);
-  }
-  if (queendiff.count() == 2) {
-    auto from = OldPosition(prior[4], queendiff);
-    auto to = SingleSquare(planes[10].mask & queendiff.as_int());
-    return Move(from, to);
-  }
+  auto rookdiff = MaskDiffWithMirror(planes[7], prior[0]);
+  auto advisordiff = MaskDiffWithMirror(planes[8], prior[1]);
+  auto cannondiff = MaskDiffWithMirror(planes[9], prior[2]);
+  auto pawndiff = MaskDiffWithMirror(planes[10], prior[3]);
+  auto knightdiff = MaskDiffWithMirror(planes[11], prior[4]);
+  auto bishopdiff = MaskDiffWithMirror(planes[12], prior[5]);
+  auto kingdiff = MaskDiffWithMirror(planes[13], prior[6]);
   if (rookdiff.count() == 2) {
-    auto from = OldPosition(prior[3], rookdiff);
-    auto to = SingleSquare(planes[9].mask & rookdiff.as_int());
-    // Only one king, so we can simply grab its current location directly.
-    auto kingpos = SingleSquare(planes[11].mask);
-    if (from.row() == kingpos.row() && to.row() == kingpos.row() &&
-        ((from.col() < kingpos.col() && to.col() > kingpos.col()) ||
-         (from.col() > kingpos.col() && to.col() < kingpos.col()))) {
-      // If the king hasn't moved, this could still be a chess 960 castling move
-      // if the rook has passed through the king.
-      // Destination of the castling move is where the rook started.
-      to = from;
-      // And since the king didn't move it forms the start position.
-      from = kingpos;
-    }
+    auto from = OldPosition(prior[0], rookdiff);
+    auto to = SingleSquare(planes[7].mask & rookdiff.as_int());
     return Move(from, to);
   }
-  if (bishopdiff.count() == 2) {
-    auto from = OldPosition(prior[2], bishopdiff);
-    auto to = SingleSquare(planes[8].mask & bishopdiff.as_int());
+  else if (advisordiff.count() == 2) {
+    auto from = OldPosition(prior[1], advisordiff);
+    auto to = SingleSquare(planes[8].mask & advisordiff.as_int());
     return Move(from, to);
   }
-  if (knightdiff.count() == 2) {
-    auto from = OldPosition(prior[1], knightdiff);
-    auto to = SingleSquare(planes[7].mask & knightdiff.as_int());
+  else if (cannondiff.count() == 2) {
+    auto from = OldPosition(prior[2], cannondiff);
+    auto to = SingleSquare(planes[9].mask & cannondiff.as_int());
     return Move(from, to);
   }
-  if (pawndiff.count() == 2) {
-    auto from = OldPosition(prior[0], pawndiff);
-    auto to = SingleSquare(planes[6].mask & pawndiff.as_int());
+  else if (pawndiff.count() == 2) {
+    auto from = OldPosition(prior[3], pawndiff);
+    auto to = SingleSquare(planes[10].mask & pawndiff.as_int());
+    return Move(from, to);
+  }
+  else if (knightdiff.count() == 2) {
+    auto from = OldPosition(prior[4], knightdiff);
+    auto to = SingleSquare(planes[11].mask & knightdiff.as_int());
+    return Move(from, to);
+  }
+  else if (bishopdiff.count() == 2) {
+    auto from = OldPosition(prior[5], bishopdiff);
+    auto to = SingleSquare(planes[12].mask & bishopdiff.as_int());
+    return Move(from, to);
+  }
+  else if (kingdiff.count() == 2) {
+    auto from = OldPosition(prior[6], kingdiff);
+    auto to = SingleSquare(planes[13].mask & kingdiff.as_int());
     return Move(from, to);
   }
   assert(false);

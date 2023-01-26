@@ -80,7 +80,7 @@ class SelfPlayGame {
 
   // Starts the game and blocks until the game is finished.
   void Play(int white_threads, int black_threads, bool training,
-            SyzygyTablebase* syzygy_tb, bool enable_resign = true);
+            bool enable_resign = true);
   // Aborts the game currently played, doesn't matter if it's synchronous or
   // not.
   void Abort();
@@ -120,13 +120,10 @@ class SelfPlayGame {
   // Track the maximum eval for white win, draw, black win for comparison to
   // actual outcome.
   float max_eval_[3] = {0.0f, 0.0f, 0.0f};
-  const bool chess960_;
   std::mutex mutex_;
 
   // Training data to send.
   V6TrainingDataArray training_data_;
-
-  std::unique_ptr<SyzygyTablebase> syzygy_tb_;
 };
 
 }  // namespace lczero

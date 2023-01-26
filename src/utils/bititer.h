@@ -34,58 +34,56 @@
 
 namespace lczero {
 
-inline unsigned long GetLowestBit(std::uint64_t value) {
-#if defined(_MSC_VER) && defined(_WIN64)
-  unsigned long result;
-  _BitScanForward64(&result, value);
-  return result;
-#elif defined(_MSC_VER)
-  unsigned long result;
-  if (value & 0xFFFFFFFF) {
-    _BitScanForward(&result, value);
-  } else {
-    _BitScanForward(&result, value >> 32);
-    result += 32;
+inline unsigned long GetLowestBit(__uint128_t value) {
+#if defined(_MSC_VER) // MSVC
+  unsigned long idx;
+  if (uint64_t(value))
+  {
+    _BitScanForward64(&idx, value);
+    return idx;
   }
-  return result;
-#else
-  return __builtin_ctzll(value);
+  else
+  {
+    _BitScanForward64(&idx, value >> 64);
+    return idx + 64;
+  }
+#else // Assumed gcc or compatible compiler
+  if (uint64_t(value))
+    return __builtin_ctzll(value);
+  return __builtin_ctzll(value >> 64) + 64;
 #endif
 }
 
 enum BoardTransform {
   NoTransform = 0,
-  // Horizontal mirror, ReverseBitsInBytes
+  // Horizontal mirror
   FlipTransform = 1,
-  // Vertical mirror, ReverseBytesInBytes
-  MirrorTransform = 2,
-  // Diagonal transpose A1 to H8, TransposeBitsInBytes.
-  TransposeTransform = 4,
 };
 
-inline uint64_t ReverseBitsInBytes(uint64_t v) {
-  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
-  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
-  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
-  return v;
+inline __uint128_t FlipBoard(__uint128_t v) {
+  constexpr __uint128_t seq1 = __uint128_t(0x0000000000201008ULL) << 64 | 0x0402010080402010ULL;
+  constexpr __uint128_t seq2 = __uint128_t(0x0000000003C1E0F0ULL) << 64 | 0x783C1E0F0783C1E0ULL;
+  constexpr __uint128_t seq3 = __uint128_t(0x0000000003198CC6ULL) << 64 | 0x633198CC6633198CULL;
+  constexpr __uint128_t seq4 = __uint128_t(0x0000000002954AA5ULL) << 64 | 0x52A954AA552A954AULL;
+
+  __uint128_t fixed = v & seq1;
+  v = ((v & seq2) >> 5) | ((v << 5) & seq2);
+  v = ((v & seq3) >> 2) | ((v << 2) & seq3);
+  v = ((v & seq4) >> 1) | ((v << 1) & seq4);
+  return v | fixed;
 }
 
-inline uint64_t ReverseBytesInBytes(uint64_t v) {
-  v = (v & 0x00000000FFFFFFFF) << 32 | (v & 0xFFFFFFFF00000000) >> 32;
-  v = (v & 0x0000FFFF0000FFFF) << 16 | (v & 0xFFFF0000FFFF0000) >> 16;
-  v = (v & 0x00FF00FF00FF00FF) << 8 | (v & 0xFF00FF00FF00FF00) >> 8;
-  return v;
-}
+inline __uint128_t MirrorBoard(__uint128_t v) {
+  constexpr __uint128_t seq1 = __uint128_t(0x0000000000000000ULL) << 64 | 0x00001FFFFFFFFFFFULL;
+  constexpr __uint128_t seq2 = __uint128_t(0x00000000000000FFULL) << 64 | 0x8000000007FC0000ULL;
+  constexpr __uint128_t seq3 = __uint128_t(0x0000000000000000ULL) << 64 | 0x7FFFE0000003FFFFULL;
+  constexpr __uint128_t seq4 = __uint128_t(0x000000000001FF00ULL) << 64 | 0x003FE00FF80001FFULL;
 
-// Transpose across the diagonal connecting bit 7 to bit 56.
-inline uint64_t TransposeBitsInBytes(uint64_t v) {
-  v = (v & 0xAA00AA00AA00AA00ULL) >> 9 | (v & 0x0055005500550055ULL) << 9 |
-      (v & 0x55AA55AA55AA55AAULL);
-  v = (v & 0xCCCC0000CCCC0000ULL) >> 18 | (v & 0x0000333300003333ULL) << 18 |
-      (v & 0x3333CCCC3333CCCCULL);
-  v = (v & 0xF0F0F0F000000000ULL) >> 36 | (v & 0x000000000F0F0F0FULL) << 36 |
-      (v & 0x0F0F0F0FF0F0F0F0ULL);
-  return v;
+  v = ((v & seq1) << 45) | ((v >> 45) & seq1);
+  __uint128_t fixed = v & seq2;
+  v = ((v & seq3) << 27) | ((v >> 27) & seq3);
+  v = ((v & seq4) <<  9) | ((v >>  9) & seq4);
+  return v | fixed;
 }
 
 // Iterates over all set bits of the value, lower to upper. The value of
@@ -99,24 +97,24 @@ class BitIterator {
   using pointer = T*;
   using reference = T&;
 
-  BitIterator(std::uint64_t value) : value_(value){};
+  BitIterator(__uint128_t value) : value_(value){};
   bool operator!=(const BitIterator& other) { return value_ != other.value_; }
 
   void operator++() { value_ &= (value_ - 1); }
   T operator*() const { return GetLowestBit(value_); }
 
  private:
-  std::uint64_t value_;
+  __uint128_t value_;
 };
 
 class IterateBits {
  public:
-  IterateBits(std::uint64_t value) : value_(value) {}
+  IterateBits(__uint128_t value) : value_(value) {}
   BitIterator<int> begin() { return value_; }
   BitIterator<int> end() { return 0; }
 
  private:
-  std::uint64_t value_;
+  __uint128_t value_;
 };
 
 }  // namespace lczero

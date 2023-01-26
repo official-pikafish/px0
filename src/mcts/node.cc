@@ -476,7 +476,6 @@ void NodeTree::MakeMove(Move move) {
       break;
     }
   }
-  move = board.GetModernMove(move);
   current_head_->ReleaseChildrenExceptOne(new_head);
   new_head = current_head_->child_.get();
   current_head_ =

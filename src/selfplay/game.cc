@@ -53,14 +53,6 @@ const OptionId kMinimumAllowedVistsId{
     "Unless the selected move is the best move, temperature based selection "
     "will be retried until visits of selected move is greater than or equal to "
     "this threshold."};
-const OptionId kUciChess960{
-    "chess960", "UCI_Chess960",
-    "Castling moves are encoded as \"king takes rook\"."};
-const OptionId kSyzygyTablebaseId{
-    "syzygy-paths", "SyzygyPath",
-    "List of Syzygy tablebase directories, list entries separated by system "
-    "separator (\";\" for Windows, \":\" for Linux).",
-    's'};
 const OptionId kOpeningStopProbId{
     "opening-stop-prob", "OpeningStopProb",
     "From each opening move, start a self-play game with probability max(p, "
@@ -73,17 +65,13 @@ void SelfPlayGame::PopulateUciParams(OptionsParser* options) {
   options->Add<FloatOption>(kResignPercentageId, 0.0f, 100.0f) = 0.0f;
   options->Add<IntOption>(kResignEarliestMoveId, 0, 1000) = 0;
   options->Add<IntOption>(kMinimumAllowedVistsId, 0, 1000000) = 0;
-  options->Add<BoolOption>(kUciChess960) = false;
   PopulateTimeManagementOptions(RunType::kSelfplay, options);
-  options->Add<StringOption>(kSyzygyTablebaseId);
   options->Add<FloatOption>(kOpeningStopProbId, 0.0f, 1.0f) = 0.0f;
 }
 
 SelfPlayGame::SelfPlayGame(PlayerOptions white, PlayerOptions black,
                            bool shared_tree, const Opening& opening)
     : options_{white, black},
-      chess960_{white.uci_options->Get<bool>(kUciChess960) ||
-                black.uci_options->Get<bool>(kUciChess960)},
       training_data_(SearchParams(*white.uci_options).GetHistoryFill(),
                      SearchParams(*black.uci_options).GetHistoryFill(),
                      white.network->GetCapabilities().input_format) {
@@ -128,7 +116,7 @@ SelfPlayGame::SelfPlayGame(PlayerOptions white, PlayerOptions black,
 }
 
 void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
-                        SyzygyTablebase* syzygy_tb, bool enable_resign) {
+                        bool enable_resign) {
   bool blacks_move = tree_[0]->IsBlackToMove();
 
   // If we are training, verify that input formats are consistent.
@@ -136,17 +124,6 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
       options_[0].network->GetCapabilities().input_format !=
           options_[1].network->GetCapabilities().input_format) {
     throw Exception("Can't mix networks with different input format!");
-  }
-  // Take syzygy tablebases from player1 options.
-  std::string tb_paths =
-      options_[0].uci_options->Get<std::string>(kSyzygyTablebaseId);
-  if (!tb_paths.empty()) {  // && tb_paths != tb_paths_) {
-    syzygy_tb_ = std::make_unique<SyzygyTablebase>();
-    CERR << "Loading Syzygy tablebases from " << tb_paths;
-    if (!syzygy_tb_->init(tb_paths)) {
-      CERR << "Failed to load Syzygy tablebases!";
-      syzygy_tb_ = nullptr;
-    }
   }
   // Do moves while not end of the game. (And while not abort_)
   while (!abort_) {
@@ -173,18 +150,11 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
           std::make_unique<CallbackUciResponder>(
               options_[idx].best_move_callback, options_[idx].info_callback);
 
-      if (!chess960_) {
-        // Remap FRC castling to legacy castling.
-        responder = std::make_unique<Chess960Transformer>(
-            std::move(responder), tree_[idx]->HeadPosition().GetBoard());
-      }
-
       search_ = std::make_unique<Search>(
           *tree_[idx], options_[idx].network, std::move(responder),
           /* searchmoves */ MoveList(), std::chrono::steady_clock::now(),
           std::move(stoppers),
-          /* infinite */ false, *options_[idx].uci_options, options_[idx].cache,
-          syzygy_tb);
+          /* infinite */ false, *options_[idx].uci_options, options_[idx].cache);
     }
 
     // Do search.
@@ -322,7 +292,6 @@ std::vector<Move> SelfPlayGame::GetMoves() const {
   while (!moves.empty()) {
     Move move = moves.back();
     moves.pop_back();
-    if (!chess960_) move = pos.GetBoard().GetLegacyMove(move);
     pos = Position(pos, move);
     // Position already flipped, therefore flip the move if white to move.
     if (!pos.IsBlackToMove()) move.Mirror();
