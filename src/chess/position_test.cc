@@ -160,7 +160,7 @@ TEST(PositionHistory, RuleJudgeWhiteChase) {
   history.Append(Move("g2h2", false));
   history.Append(Move("h6g6", true));
   history.Append(Move("h2g2", false));
-  EXPECT_FALSE(history.RuleJudge() == GameResult::BLACK_WON);
+  EXPECT_TRUE(history.RuleJudge() == GameResult::BLACK_WON);
 }
 
 TEST(PositionHistory, RuleJudgeBlackChase) {
@@ -172,7 +172,7 @@ TEST(PositionHistory, RuleJudgeBlackChase) {
   history.Append(Move("g2h2", false));
   history.Append(Move("g7h7", true));
   history.Append(Move("h2g2", false));
-  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
+  EXPECT_TRUE(history.RuleJudge() == GameResult::WHITE_WON);
 }
 
 TEST(PositionHistory, RuleJudgeWhiteCheck) {
@@ -184,7 +184,7 @@ TEST(PositionHistory, RuleJudgeWhiteCheck) {
   history.Append(Move("d2e2", false));
   history.Append(Move("e9d9", true));
   history.Append(Move("e2d2", false));
-  EXPECT_FALSE(history.RuleJudge() == GameResult::BLACK_WON);
+  EXPECT_TRUE(history.RuleJudge() == GameResult::BLACK_WON);
 }
 
 TEST(PositionHistory, RuleJudgeBlackCheck) {
@@ -196,7 +196,7 @@ TEST(PositionHistory, RuleJudgeBlackCheck) {
   history.Append(Move("f0e0", false));
   history.Append(Move("f7e7", true));
   history.Append(Move("e0f0", false));
-  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
+  EXPECT_TRUE(history.RuleJudge() == GameResult::WHITE_WON);
 }
 
 TEST(PositionHistory, RuleJudgeDraw) {
@@ -208,7 +208,7 @@ TEST(PositionHistory, RuleJudgeDraw) {
   history.Append(Move("g1h1", false));
   history.Append(Move("h7g7", true));
   history.Append(Move("h1g1", false));
-  EXPECT_FALSE(history.RuleJudge() == GameResult::WHITE_WON);
+  EXPECT_TRUE(history.RuleJudge() == GameResult::DRAW);
 }
 
 }  // namespace lczero

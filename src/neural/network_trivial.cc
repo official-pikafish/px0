@@ -39,46 +39,31 @@
 #include <memory>
 
 #include "neural/factory.h"
-#include "utils/bititer.h"
-#include "utils/logging.h"
+#include "chess/bitboard.h"
 
 namespace lczero {
 namespace {
 
-constexpr std::array<float, 2062> kLogPolicy { };
-
-constexpr std::array<float, 90> kRooks = { };
-constexpr std::array<float, 90> kAdvisors = { };
-constexpr std::array<float, 90> kCannons = { };
-constexpr std::array<float, 90> kPawns = { };
-constexpr std::array<float, 90> kKnights = { };
-constexpr std::array<float, 90> kBishops = { };
-constexpr std::array<float, 90> kKings = { };
-
-float DotProduct(__uint128_t plane, const std::array<float, 90>& weights) {
-  float result = 0.0f;
-  for (auto idx : IterateBits(plane)) result += weights[idx];
-  return result;
+static inline float MaterialScore(const __uint128_t& maskOurs, const __uint128_t& maskTheirs, double score) {
+  return (BitBoard(maskOurs).count() - BitBoard(maskTheirs).count()) * score;
 }
 
 class TrivialNetworkComputation : public NetworkComputation {
  public:
   void AddInput(InputPlanes&& input) override {
-    float q = 0.0f;
-    q += DotProduct(input[0].mask, kRooks);
-    q -= DotProduct(MirrorBoard(input[7].mask), kRooks);
-    q += DotProduct(input[1].mask, kAdvisors);
-    q -= DotProduct(MirrorBoard(input[8].mask), kAdvisors);
-    q += DotProduct(input[2].mask, kCannons);
-    q -= DotProduct(MirrorBoard(input[9].mask), kCannons);
-    q += DotProduct(input[3].mask, kPawns);
-    q -= DotProduct(MirrorBoard(input[10].mask), kPawns);
-    q += DotProduct(input[4].mask, kKnights);
-    q -= DotProduct(MirrorBoard(input[11].mask), kKnights);
-    q += DotProduct(input[5].mask, kBishops);
-    q -= DotProduct(MirrorBoard(input[12].mask), kBishops);
-    q += DotProduct(input[6].mask, kKings);
-    q -= DotProduct(MirrorBoard(input[13].mask), kKings);
+    float q =
+        // Rook
+        MaterialScore(input[0].mask, input[7].mask, 0.18181818181818182) +
+        // Advisor
+        MaterialScore(input[1].mask, input[8].mask, 0.03636363636363636) +
+        // Cannon
+        MaterialScore(input[2].mask, input[9].mask, 0.10090909090909091) +
+        // Pawn
+        MaterialScore(input[3].mask, input[10].mask, 0.01818181818181818) +
+        // Knight
+        MaterialScore(input[4].mask, input[11].mask, 0.08090909090909090) +
+        // Bishop
+        MaterialScore(input[5].mask, input[12].mask, 0.05454545454545454);
     // Multiply Q by 10, otherwise evals too low. :-/
     q_.push_back(2.0f / (1.0f + std::exp(q * -10.0f)) - 1.0f);
   }
@@ -93,8 +78,8 @@ class TrivialNetworkComputation : public NetworkComputation {
 
   float GetMVal(int /* sample */) const override { return 0.0f; }
 
-  float GetPVal(int /* sample */, int move_id) const override {
-    return kLogPolicy[move_id];
+  float GetPVal(int /* sample */, [[maybe_unused]]int move_id) const override {
+    return 0.0f;
   }
 
  private:

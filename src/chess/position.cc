@@ -141,8 +141,8 @@ GameResult PositionHistory::RuleJudge() const {
     checkThem &= pos.GetBoard().IsUnderCheck();
 
     if (pos.GetBoard() == last.GetBoard() && pos.GetRepetitions() == 0) {
-      return (checkThem || checkUs) ? (!checkUs ? GameResult::WHITE_WON : !checkThem ? GameResult::BLACK_WON : GameResult::DRAW)
-           : (chaseThem || chaseUs) ? (!chaseUs ? GameResult::WHITE_WON : !chaseThem ? GameResult::BLACK_WON : GameResult::DRAW)
+      return (checkThem || checkUs) ? (!checkUs ? GameResult::BLACK_WON : !checkThem ? GameResult::WHITE_WON : GameResult::DRAW)
+           : (chaseThem || chaseUs) ? (!chaseUs ? GameResult::BLACK_WON : !chaseThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : GameResult::DRAW;
     }
 

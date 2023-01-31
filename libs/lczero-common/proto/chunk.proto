@@ -31,7 +31,7 @@ import "proto/net.proto";
 package pblczero;
 
 message State {
-  repeated fixed128 plane = 1 [packed=true];
+  repeated fixed64 plane = 1 [packed=true];
   optional uint32 side_to_move = 2;
   optional uint32 rule_50 = 3;
 }

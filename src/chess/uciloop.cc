@@ -75,6 +75,10 @@ ParseCommand(const std::string& line) {
   // If empty line, return empty command.
   if (token.empty()) return {};
 
+  if (token == "fen" || token == "startpos") {
+    iss.seekg(std::ios::beg);
+    token = "position";
+  }
   const auto command = kKnownCommands.find(token);
   if (command == kKnownCommands.end()) {
     throw Exception("Unknown command: " + line);
