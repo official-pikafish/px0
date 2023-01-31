@@ -125,9 +125,9 @@ OnnxComputation<DataType>::OnnxComputation(OnnxNetwork* network)
     : network_(network) {
   output_tensors_data_.resize(network_->outputs_.size());
   output_tensors_step_.resize(network_->outputs_.size());
-  output_tensors_step_[network_->policy_head_] = 1858;
+  output_tensors_step_[network_->policy_head_] = 2062;
   output_tensors_data_[network_->policy_head_] =
-      std::vector<DataType>(1858 * network_->max_batch_size_);
+      std::vector<DataType>(2062 * network_->max_batch_size_);
   if (network_->wdl_head_ != -1) {
     output_tensors_step_[network_->wdl_head_] = 3;
     output_tensors_data_[network_->wdl_head_] =
@@ -178,7 +178,7 @@ float OnnxComputation<DataType>::GetDVal(int sample) const {
 template <typename DataType>
 float OnnxComputation<DataType>::GetPVal(int sample, int move_id) const {
   const auto& data = output_tensors_data_[network_->policy_head_];
-  return AsFloat(data[sample * 1858 + move_id]);
+  return AsFloat(data[sample * 2062 + move_id]);
 }
 
 template <typename DataType>
@@ -191,7 +191,7 @@ float OnnxComputation<DataType>::GetMVal(int sample) const {
 template <typename DataType>
 Ort::Value OnnxComputation<DataType>::PrepareInputs(int start, int batch_size) {
   input_tensor_data_.clear();
-  input_tensor_data_.resize(batch_size * kInputPlanes * 8 * 8);
+  input_tensor_data_.resize(batch_size * kInputPlanes * 10 * 9);
   auto iter = input_tensor_data_.data();
   int end = std::min(start + batch_size, static_cast<int>(raw_input_.size()));
   for (int i = start; i < end; i++) {
@@ -202,11 +202,11 @@ Ort::Value OnnxComputation<DataType>::PrepareInputs(int start, int batch_size) {
       for (auto bit : IterateBits(plane.mask)) {
         *(iter + bit) = value;
       }
-      iter += 64;
+      iter += 90;
     }
   }
   for (int i = end; i < start + batch_size; i++) {
-    for (int j = 0; j < kInputPlanes * 64; j++) {
+    for (int j = 0; j < kInputPlanes * 90; j++) {
       *iter++ = 0;
     }
   }
@@ -223,7 +223,7 @@ Ort::Value OnnxComputation<DataType>::PrepareInputs(int start, int batch_size) {
         size * batch_size, dims, 2));
   }
 
-  int64_t dims[] = {batch_size, kInputPlanes, 8, 8};
+  int64_t dims[] = {batch_size, kInputPlanes, 10, 9};
   return Ort::Value::CreateTensor<DataType>(memory_info,
                                             input_tensor_data_.data(),
                                             input_tensor_data_.size(), dims, 4);

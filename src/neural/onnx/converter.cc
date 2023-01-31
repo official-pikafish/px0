@@ -326,7 +326,7 @@ std::string Converter::MakeEncoderLayer(
 
 namespace {
 std::vector<int> MakePolicyMap(const short* map, int size) {
-  std::vector<int> policy_map(1858);
+  std::vector<int> policy_map(2062);
   int idx = 0;
   for (int i = 0; i < size; i++) {
     if (map[i] > -1) policy_map[map[i]] = idx;
@@ -429,7 +429,7 @@ std::string Converter::MakeAttentionPolicy(OnnxBuilder* builder,
           "/const/mapping_table",
           Int32OnnxConst(
               MakePolicyMap(kAttnPolicyMap, std::size(kAttnPolicyMap)),
-              {1858})),
+              {2062})),
       1);
 }
 
@@ -439,27 +439,27 @@ void Converter::MakePolicyHead(pblczero::OnnxModel* onnx, OnnxBuilder* builder,
   if (src_.format().network_format().policy() ==
       pblczero::NetworkFormat::POLICY_ATTENTION) {
     auto output = MakeAttentionPolicy(builder, input, weights);
-    builder->AddOutput(output, {-1, 1858}, GetDataType());
+    builder->AddOutput(output, {-1, 2062}, GetDataType());
     onnx->set_output_policy(output);
   } else if (!weights.policy1.weights.empty()) {
     // Conv policy head.
     auto flow = MakeConvBlock(builder, weights.policy1, NumFilters(),
                               NumFilters(), input, "/policy/conv1");
-    flow = MakeConvBlock(builder, weights.policy, NumFilters(), 80, flow,
+    flow = MakeConvBlock(builder, weights.policy, NumFilters(), 52, flow,
                          "/policy/conv2", nullptr, "", false);
     flow = builder->Reshape(
         "/policy/flatten", flow,
         builder->AddInitializer("/const/policy_shape",
-                                Int64OnnxConst({-1, 80 * 8 * 8}, {2})));
+                                Int64OnnxConst({-1, 52 * 10 * 9}, {2})));
     auto output = builder->Gather(
         options_.output_policy_head, flow,
         builder->AddInitializer(
             "/const/mapping_table",
             Int32OnnxConst(
                 MakePolicyMap(kConvPolicyMap, std::size(kConvPolicyMap)),
-                {1858})),
+                {2062})),
         1);
-    builder->AddOutput(output, {options_.batch_size, 1858}, GetDataType());
+    builder->AddOutput(output, {options_.batch_size, 2062}, GetDataType());
     onnx->set_output_policy(output);
   } else {
     // Dense policy head.
@@ -471,14 +471,14 @@ void Converter::MakePolicyHead(pblczero::OnnxModel* onnx, OnnxBuilder* builder,
         builder->Reshape("/policy/reshape", flow,
                          builder->AddInitializer(
                              "/const/policy_shape",
-                             Int64OnnxConst({-1, pol_channels * 8 * 8}, {2})));
+                             Int64OnnxConst({-1, pol_channels * 10 * 9}, {2})));
     flow = builder->MatMul(
         "/policy/dense/matmul", flow,
-        *GetWeghtsConverter(weights.ip_pol_w, {pol_channels * 8 * 8, 1858},
+        *GetWeghtsConverter(weights.ip_pol_w, {pol_channels * 10 * 9, 2062},
                             {1, 0}));
     auto output = builder->Add(options_.output_policy_head, flow,
-                               *GetWeghtsConverter(weights.ip_pol_b, {1858}));
-    builder->AddOutput(output, {options_.batch_size, 1858}, GetDataType());
+                               *GetWeghtsConverter(weights.ip_pol_b, {2062}));
+    builder->AddOutput(output, {options_.batch_size, 2062}, GetDataType());
     onnx->set_output_policy(output);
   }
 }
@@ -491,10 +491,10 @@ void Converter::MakeValueHead(pblczero::OnnxModel* onnx, OnnxBuilder* builder,
   flow = builder->Reshape(
       "/value/reshape", flow,
       builder->AddInitializer("/const/value_shape",
-                              Int64OnnxConst({-1, 32 * 8 * 8}, {2})));
+                              Int64OnnxConst({-1, 32 * 10 * 9}, {2})));
   flow = builder->MatMul(
       "/value/dense1/matmul", flow,
-      *GetWeghtsConverter(weights.ip1_val_w, {32 * 8 * 8, 128}, {1, 0}));
+      *GetWeghtsConverter(weights.ip1_val_w, {32 * 10 * 9, 128}, {1, 0}));
   flow = builder->Add("/value/dense1/add", flow,
                       *GetWeghtsConverter(weights.ip1_val_b, {128}));
   flow = MakeActivation(builder, flow, "/value/dense1", default_activation_);
@@ -538,11 +538,11 @@ void Converter::MakeMovesLeftHead(pblczero::OnnxModel* onnx,
   flow = builder->Reshape(
       "/mlh/reshape", flow,
       builder->AddInitializer("/const/mlh_shape",
-                              Int64OnnxConst({-1, mlh_channels * 8 * 8}, {2})));
+                              Int64OnnxConst({-1, mlh_channels * 10 * 9}, {2})));
   flow = builder->MatMul(
       "/mlh/dense1/matmul", flow,
       *GetWeghtsConverter(weights.ip1_mov_w,
-                          {mlh_channels * 8 * 8, mlh_fc1_outputs}, {1, 0}));
+                          {mlh_channels * 10 * 9, mlh_fc1_outputs}, {1, 0}));
   flow =
       builder->Add("/mlh/dense1/add", flow,
                    *GetWeghtsConverter(weights.ip1_mov_b, {mlh_fc1_outputs}));
@@ -565,7 +565,7 @@ void Converter::GenerateOnnx(pblczero::OnnxModel* onnx) {
   AddStdInitializers(&builder);
 
   onnx->set_input_planes(options_.input_planes_name);
-  builder.AddInput(options_.input_planes_name, {options_.batch_size, 112, 8, 8},
+  builder.AddInput(options_.input_planes_name, {options_.batch_size, kInputPlanes, 10, 9},
                    GetDataType());
   // Input convolution.
   auto flow = MakeConvBlock(&builder, weights.input, kInputPlanes, NumFilters(),

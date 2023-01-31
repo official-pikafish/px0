@@ -45,7 +45,7 @@ option('cudnn_include',
 
 option('build_backends',
        type: 'boolean',
-       value: false,
+       value: true,
        description: 'Build backends for NN computation')
 
 option('blas',
@@ -130,12 +130,12 @@ option('mimalloc_libdir',
 
 option('popcnt',
        type: 'boolean',
-       value: false,
+       value: true,
        description: 'Use the popcnt instruction')
 
 option('pext',
        type: 'boolean',
-       value: false,
+       value: true,
        description: 'Use the pext instruction')
 
 option('neon',
@@ -170,10 +170,10 @@ option('cc_cuda',
 
 option('onnx_libdir',
        type: 'string',
-       value: '',
+       value: 'D:/Qt/QtProjects/lc0/subprojects/Microsoft.ML.OnnxRuntime.DirectML.1.13.1/lib/',
        description: 'Paths to ONNX runtime libraries')
 
 option('onnx_include',
        type: 'string',
-       value: '',
+       value: 'D:/Qt/QtProjects/lc0/subprojects/Microsoft.ML.OnnxRuntime.DirectML.1.13.1/include/',
        description: 'Paths to ONNX runtime includes')
