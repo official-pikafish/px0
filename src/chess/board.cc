@@ -801,8 +801,10 @@ bool ChessBoard::IsLegalMove(Move move, BitBoard original) const {
   return !(checkers - original).as_int();
 }
 
-constexpr int make_chase(int piece1, int piece2) {
-  return (piece1 << 4) + piece2;
+int ChessBoard::MakeChase(BoardSquare from, BoardSquare to) const {
+  if (flipped_)
+    from.Mirror(), to.Mirror();
+  return (id_board_[to.as_int()] << 4) + id_board_[from.as_int()];
 }
 
 ChaseMap ChessBoard::Chased() const {
@@ -829,7 +831,7 @@ ChaseMap ChessBoard::Chased() const {
       attacks -= candidates;
       for (const auto & to : candidates) {
         if (IsLegalMove(Move(from, to), checkUs))
-          chase |= make_chase(id_board_[to.as_int()], id_board_[from.as_int()]);
+          chase |= MakeChase(from, to);
       }
 
       // Attacks against potentially unprotected pieces
@@ -854,10 +856,10 @@ ChaseMap ChessBoard::Chased() const {
             if (attacker.get(to)) {
               if (   (attackerType == KNIGHT && !(GetAttacks<KNIGHT>(to, our_pieces_ | their_pieces_).get(from)))
                   || !IsLegalMove<false>(Move(to, from), checkThem))
-                chase |= make_chase(id_board_[to.as_int()], id_board_[from.as_int()]);
+                chase |= MakeChase(from, to);
             }
             else
-              chase |= make_chase(id_board_[to.as_int()], id_board_[from.as_int()]);
+              chase |= MakeChase(from, to);
           }
         }
       }

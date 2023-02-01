@@ -43,12 +43,12 @@ union ChaseMap {
   uint64_t attacks[4] { };
   uint16_t victims[16];
 
-          // For adding victim <- attacker pair
+  // For adding victim <- attacker pair
   void operator |= (int id) {
     attacks[id >> 6] |= 1ULL << (id & 63);
   }
 
-          // For exact diff
+  // For exact diff
   ChaseMap& operator & (const ChaseMap &rhs) {
     attacks[0] &= ~rhs.attacks[0];
     attacks[1] &= ~rhs.attacks[1];
@@ -57,7 +57,7 @@ union ChaseMap {
     return *this;
   }
 
-          // For victims extraction
+  // For victims extraction
   operator uint16_t() {
     uint16_t ret = 0;
     for (int i = 0; i < 16; ++i)
@@ -113,6 +113,8 @@ class ChessBoard {
   bool IsLegalMove(Move move, BitBoard original = 0) const;
   // Returns whether two moves are actually the same move in the position.
   bool IsSameMove(Move move1, Move move2) const;
+  // Return a chase information in chase map
+  int MakeChase(BoardSquare from, BoardSquare to) const;
   // Returns chasing information for "ours" (white)
   ChaseMap Chased() const;
 
