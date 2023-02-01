@@ -33,7 +33,7 @@ InputPlanes PlanesFromTrainingData(const V6TrainingData& data) {
   InputPlanes result;
   for (int i = 0; i < 120; i++) {
     result.emplace_back();
-    result.back().mask = FlipBoard(data.planes[i]);
+    result.back().mask = data.planes[i];
   }
   result.emplace_back();
   auto typed_format =
