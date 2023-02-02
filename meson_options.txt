@@ -170,10 +170,10 @@ option('cc_cuda',
 
 option('onnx_libdir',
        type: 'string',
-       value: 'D:/Qt/QtProjects/lc0/subprojects/Microsoft.ML.OnnxRuntime.DirectML.1.13.1/lib/',
+       value: 'D:/Qt/QtProjects/lc0/subprojects/onnx/lib/',
        description: 'Paths to ONNX runtime libraries')
 
 option('onnx_include',
        type: 'string',
-       value: 'D:/Qt/QtProjects/lc0/subprojects/Microsoft.ML.OnnxRuntime.DirectML.1.13.1/include/',
+       value: 'D:/Qt/QtProjects/lc0/subprojects/onnx/include/',
        description: 'Paths to ONNX runtime includes')

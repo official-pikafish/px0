@@ -249,7 +249,7 @@ std::string Converter::MakeEncoderLayer(
 
   auto mha_shape =
       builder->AddInitializer("/const" + name + "/mha/shape",
-                              Int64OnnxConst({-1, 64, heads, depth}, {4}));
+                              Int64OnnxConst({-1, 90, heads, depth}, {4}));
   auto flow = builder->MatMul(
       name + "/mha/Q/w", encoder_in,
       *GetWeghtsConverter(layer.mha.q_w, {embedding_size, d_model}, {1, 0}));
@@ -370,7 +370,7 @@ std::string Converter::MakeAttentionPolicy(OnnxBuilder* builder,
   auto Q = builder->Reshape(
       "/policy/Q/reshape", flow,
       builder->AddInitializer("/const/QK_shape",
-                              Int64OnnxConst({-1, 64, policy_d_model}, {3})));
+                              Int64OnnxConst({-1, 90, policy_d_model}, {3})));
   flow = builder->MatMul(
       "/policy/K/matmul", encoder_out,
       *GetWeghtsConverter(weights.ip3_pol_w, {embedding_size, policy_d_model},
@@ -389,40 +389,10 @@ std::string Converter::MakeAttentionPolicy(OnnxBuilder* builder,
         FloatOnnxConst({1.0f / sqrtf(policy_d_model)}, {1}));
   }
   flow = builder->Mul("/policy/scale", flow, *scale);
-  auto prom = builder->Slice("policy/promotion/slice", K, {0, 56, 0},
-                             {INT_MAX, 64, policy_d_model});
-  prom = builder->MatMul(
-      "/policy/promotion/matmul", prom,
-      *GetWeghtsConverter(weights.ip4_pol_w, {policy_d_model, 4}, {1, 0}));
-  prom = builder->Transpose("/policy/promotion/transpose", prom, {0, 2, 1});
-  auto prom2 = builder->Split("/policy/promotion/split", prom, 1, {3, 1});
-  prom = builder->Add("/policy/promotion/add", prom2[0], prom2[1]);
-  prom = builder->Transpose("/policy/promotion/transpose2", prom, {0, 2, 1});
-  prom = builder->Reshape(
-      "/policy/promotion/reshape", prom,
-      builder->AddInitializer("/const/policy_promotion_shape",
-                              Int64OnnxConst({-1, 1, 24}, {3})));
-  auto sl = builder->Slice("policy/promotion/slice2", flow, {0, 48, 56},
-                           {INT_MAX, 56, 64});
-  sl = builder->Reshape(
-      "/policy/promotion/reshape2", sl,
-      builder->AddInitializer("/const/policy_promotion_shape2",
-                              Int64OnnxConst({-1, 64, 1}, {3})));
-  sl = builder->Concat("/policy/promotion/concat", {sl, sl, sl}, 2);
-  sl = builder->Reshape(
-      "/policy/promotion/reshape3", sl,
-      builder->AddInitializer("/const/policy_promotion_shape3",
-                              Int64OnnxConst({-1, 8, 24}, {3})));
-  prom = builder->Add("/policy/promotion/add2", sl, prom);
-  prom = builder->Reshape(
-      "/policy/promotion/reshape4", prom,
-      builder->AddInitializer("/const/policy_promotion_shape4",
-                              Int64OnnxConst({-1, 3, 64}, {3})));
-  flow = builder->Concat("/policy/concat", {flow, prom}, 1);
   flow = builder->Reshape(
       "/policy/reshape", flow,
       builder->AddInitializer("/const/policy_out_shape",
-                              Int64OnnxConst({-1, 67 * 64}, {2})));
+                              Int64OnnxConst({-1, 90 * 90}, {2})));
   return builder->Gather(
       options_.output_policy_head, flow,
       builder->AddInitializer(
