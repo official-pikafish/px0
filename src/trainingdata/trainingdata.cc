@@ -127,6 +127,10 @@ void V6TrainingDataArray::Add(const Node* node, const PositionHistory& history,
   InputPlanes planes = EncodePositionForNN(
       input_format_, history, 8, fill_empty_history_[position.IsBlackToMove()],
       &transform);
+  int plane_idx = 0;
+  for (auto& plane : result.planes) {
+    plane = planes[plane_idx++].mask;
+  }
 
   // Populate probabilities.
   auto total_n = node->GetChildrenVisits();

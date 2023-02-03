@@ -91,7 +91,7 @@ InputPlanes EncodePositionForNN(
       if (we_are_black) result[kAuxPlaneBase].SetAll();
     }
     if (IsHectopliesFormat(input_format)) {
-      result[kAuxPlaneBase + 1].Fill(history.Last().GetRule50Ply() / 100.0f);
+      result[kAuxPlaneBase + 1].Fill(history.Last().GetRule50Ply() / 120.0f);
     } else {
       result[kAuxPlaneBase + 1].Fill(history.Last().GetRule50Ply());
     }
