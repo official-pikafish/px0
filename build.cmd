@@ -3,7 +3,7 @@ setlocal
 
 rem 1. Set the following for the options you want to build.
 set CUDNN=false
-set CUDA=true
+set CUDA=false
 set DX12=false
 set OPENCL=false
 set MKL=false
@@ -29,7 +29,16 @@ set CC=cl
 set CXX=cl
 set CC_LD=link
 set CXX_LD=link
-set backend=ninja
+
+if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019" (
+  where /q cl
+  if errorlevel 1 call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
+  set backend=vs2019
+) else (
+  where /q cl
+  if errorlevel 1 call "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
+  set backend=vs2017
+)
 
 set BLAS=true
 if %MKL%==false if %DNNL%==false if %OPENBLAS%==false if %EIGEN%==false set BLAS=false
@@ -53,6 +62,8 @@ meson build --backend %backend% --buildtype release -Ddx=%DX12% -Dcudnn=%CUDNN% 
 -Ddefault_library=static
 
 if errorlevel 1 exit /b
+
+pause
 
 cd build
 

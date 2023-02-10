@@ -139,7 +139,7 @@ void ShowNetworkWeightsInfo(const pblczero::Net& weights) {
   }
 
   COUT << Justify("Filters")
-       << w.input().weights().params().size() / 2 / 112 / 9;
+       << w.input().weights().params().size() / 2 / 124 / 9;
   COUT << Justify("Policy") << (w.has_policy1() ? "Convolution" : "Dense");
   if (!w.has_policy1()) {
     int policy_channels = w.policy().biases().params().size() / 2;
