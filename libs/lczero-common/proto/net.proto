@@ -65,6 +65,20 @@ message Weights {
     optional SEunit se = 3;
   }
 
+  message Smolgen {
+    // For NETWORK_ATTENTIONBODY_WITH_HEADFORMAT.
+    optional Layer compress = 1;
+    optional Layer dense1_w = 2;
+    optional Layer dense1_b = 3;
+    optional Layer ln1_gammas = 4;
+    optional Layer ln1_betas = 5;
+    optional Layer dense2_w = 6;
+    optional Layer dense2_b = 7;
+    optional Layer ln2_gammas = 8;
+    optional Layer ln2_betas = 9;
+  }
+
+
   message MHA {
     optional Layer q_w = 1;
     optional Layer q_b = 2;
@@ -74,6 +88,7 @@ message Weights {
     optional Layer v_b = 6;
     optional Layer dense_w = 7;
     optional Layer dense_b = 8;
+    optional Smolgen smolgen = 9;
   }
 
   message FFN {
@@ -98,7 +113,22 @@ message Weights {
   // Residual tower.
   repeated Residual residual = 2;
 
+  // Embedding layer for attention body encoders
+  // (NETWORK_ATTENTIONBODY_WITH_HEADFORMAT).
+  optional Layer ip_emb_w = 25;
+  optional Layer ip_emb_b = 26;
+
+  // Input gating (NETWORK_ATTENTIONBODY_WITH_HEADFORMAT).
+  optional Layer ip_mult_gate = 33;
+  optional Layer ip_add_gate = 34;
+
+  // Encoder stack (NETWORK_ATTENTIONBODY_WITH_HEADFORMAT).
+  repeated EncoderLayer encoder = 27;
+  optional uint32 headcount = 28;
+
   // Policy encoder stack
+  // The ffn activation up to and including NETWORK_SE_WITH_HEADFORMAT is SELU,
+  // otherwise it follows the ffn activation setting.
   repeated EncoderLayer pol_encoder = 21;
   optional uint32 pol_headcount = 24;
 
@@ -108,6 +138,8 @@ message Weights {
   optional ConvBlock policy = 3;
   optional Layer ip_pol_w = 4;    // "embedding" in policy attention
   optional Layer ip_pol_b = 5;
+  // For policy attention, up to and including NETWORK_SE_WITH_HEADFORMAT the
+  // "embedding" activation is SELU, otherwise it is the default activation.
   optional Layer ip2_pol_w = 17;  // "wq" in policy attention
   optional Layer ip2_pol_b = 18;
   optional Layer ip3_pol_w = 19;  // "wk" in policy attention
@@ -116,6 +148,8 @@ message Weights {
 
   // Value head
   optional ConvBlock value = 6;
+  optional Layer ip_val_w = 29;  // "embedding" for attention body value
+  optional Layer ip_val_b = 30;
   optional Layer ip1_val_w = 7;
   optional Layer ip1_val_b = 8;
   optional Layer ip2_val_w = 9;
@@ -123,10 +157,16 @@ message Weights {
 
   // Moves left head
   optional ConvBlock moves_left = 12;
+  optional Layer ip_mov_w = 31;  // "embedding" for attention body moves left
+  optional Layer ip_mov_b = 32;
   optional Layer ip1_mov_w = 13;
   optional Layer ip1_mov_b = 14;
   optional Layer ip2_mov_w = 15;
   optional Layer ip2_mov_b = 16;
+
+  // Global smolgen weights (NETWORK_ATTENTIONBODY_WITH_HEADFORMAT).
+  optional Layer smolgen_w = 35;
+  optional Layer smolgen_b = 36;
 }
 
 message TrainingParams {
@@ -170,6 +210,7 @@ message NetworkFormat {
     NETWORK_CLASSICAL_WITH_HEADFORMAT = 3;
     NETWORK_SE_WITH_HEADFORMAT = 4;
     NETWORK_ONNX = 5;
+    NETWORK_ATTENTIONBODY_WITH_HEADFORMAT = 6;
   }
   optional NetworkStructure network = 3;
 
@@ -198,12 +239,29 @@ message NetworkFormat {
   }
   optional MovesLeftFormat moves_left = 6;
 
+  enum ActivationFunction {
+    ACTIVATION_DEFAULT = 0;
+    ACTIVATION_MISH = 1;
+    ACTIVATION_RELU = 2;
+    ACTIVATION_NONE = 3;
+    ACTIVATION_TANH = 4;
+    ACTIVATION_SIGMOID = 5;
+    ACTIVATION_SELU = 6;
+    ACTIVATION_SWISH = 7;
+    ACTIVATION_RELU_2 = 8;
+    ACTIVATION_SOFTMAX = 9;
+  }
+
+
   // Activation used everywhere except head outputs or otherwise specified.
   enum DefaultActivation {
     DEFAULT_ACTIVATION_RELU = 0;
     DEFAULT_ACTIVATION_MISH = 1;
   }
   optional DefaultActivation default_activation = 7;
+
+  optional ActivationFunction smolgen_activation = 8;
+  optional ActivationFunction ffn_activation = 9;
 }
 
 message Format {
