@@ -477,7 +477,7 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
         "/const/smolgen_w",
         *GetWeghtsConverter(
             weights.smolgen_w,
-            {static_cast<int>(weights.smolgen_w.size() / 4096), 4096}, {1, 0}));
+            {static_cast<int>(weights.smolgen_w.size() / 8100), 8100}, {1, 0}));
   }
 
   auto flow = builder->Transpose("/attn_body/transpose", input, {0, 2, 3, 1});
@@ -491,7 +491,7 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
     flow = builder->Reshape(
         "/attn_body/reshape", flow,
         builder->AddInitializer("/const/att_body_shape",
-                                Int64OnnxConst({-1, 64, 112}, {3})));
+                                Int64OnnxConst({-1, 90, kInputPlanes}, {3})));
     std::string pad;
     if (options_.batch_size < 0) {
       pad = builder->Shape("/attn_body/shape", flow);
@@ -499,20 +499,20 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
       pad = builder->Concat(
           "/attn_body/pos_encoding_shape",
           {pad, builder->AddInitializer("/const/pos_encoding_shape",
-                                        Int64OnnxConst({64, 64}, {2}))},
+                                        Int64OnnxConst({90, 90}, {2}))},
           0);
     } else {
       pad = builder->AddInitializer(
           "/const/pos_encoding_shape",
-          Int64OnnxConst({options_.batch_size, 64, 64}, {3}));
+          Int64OnnxConst({options_.batch_size, 90, 90}, {3}));
     }
     pad = builder->Expand(
         "/attn_body/expand",
         builder->AddInitializer(
             "/const/pos_encoding",
             *GetWeghtsConverter(
-                std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 64 * 64),
-                {1, 64, 64})),
+                std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
+                {1, 90, 90})),
         pad);
     flow = builder->Concat("/attn_body/padded_input", {flow, pad}, 2);
     flow = builder->Reshape(
@@ -535,16 +535,16 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
     flow = builder->Reshape(
         "/attn_body/ma_gating/rehape1", flow,
         builder->AddInitializer("/const/ma_gating/shape1",
-                                Int64OnnxConst({-1, 64, embedding_size}, {3})));
+                                Int64OnnxConst({-1, 90, embedding_size}, {3})));
     if (weights.ip_mult_gate.size() > 0) {
       flow = builder->Mul("/ip_mul_gate", flow,
                           *GetWeghtsConverter(weights.ip_mult_gate,
-                                              {64, embedding_size}, {1, 0}));
+                                              {90, embedding_size}, {1, 0}));
     }
     if (weights.ip_add_gate.size() > 0) {
       flow = builder->Add("/ip_add_gate", flow,
                           *GetWeghtsConverter(weights.ip_add_gate,
-                                              {64, embedding_size}, {1, 0}));
+                                              {90, embedding_size}, {1, 0}));
     }
     flow = builder->Reshape(
         "/attn_body/ma_gating/rehape2", flow,
