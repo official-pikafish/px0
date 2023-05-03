@@ -145,7 +145,7 @@ void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
   fen += " - - ";
   int rule50plane = (int)planes[kAuxPlaneBase + 1].value;
   if (IsHectopliesFormat(input_format)) {
-    rule50plane = (int)(100.0f * planes[kAuxPlaneBase + 1].value);
+    rule50plane = (int)(120.0f * planes[kAuxPlaneBase + 1].value);
   }
   fen += std::to_string(rule50plane);
   // Reuse the 50 move rule as gameply since we don't know better.

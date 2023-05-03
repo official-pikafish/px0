@@ -45,7 +45,7 @@ InputPlanes PlanesFromTrainingData(const V6TrainingData& data) {
   }
   result.emplace_back();
   if (IsHectopliesFormat(typed_format)) {
-    result.back().Fill(data.rule50_count / 100.0f);
+    result.back().Fill(data.rule50_count / 120.0f);
   } else {
     result.back().Fill(data.rule50_count);
   }

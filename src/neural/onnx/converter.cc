@@ -518,7 +518,7 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
     flow = builder->Reshape(
         "/attn_body/reshape2", flow,
         builder->AddInitializer("/const/att_body_shape2",
-                                Int64OnnxConst({-1, 176}, {2})));
+                                Int64OnnxConst({-1, 214}, {2})));
   }
 
   int embedding_size = weights.ip_emb_b.size();
@@ -526,7 +526,7 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
       "/attn_body/matmul", flow,
       *GetWeghtsConverter(
           weights.ip_emb_w,
-          {NumResBlocks() > 0 ? NumFilters() : 176, embedding_size}, {1, 0}));
+          {NumResBlocks() > 0 ? NumFilters() : 214, embedding_size}, {1, 0}));
   flow = builder->Add("/attn_body/add", flow,
                       *GetWeghtsConverter(weights.ip_emb_b, {embedding_size}));
   flow = MakeActivation(builder, flow, "/attn_body", default_activation_);
