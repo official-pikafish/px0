@@ -52,7 +52,7 @@
 namespace lczero {
 namespace {
 
-enum class OnnxProvider { CPU, CUDA, DML };
+enum class OnnxProvider { CPU, ROCM, CUDA, DML };
 
 class OnnxNetwork;
 
@@ -254,6 +254,7 @@ Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
                                int batch_size) {
   Ort::SessionOptions options;
   OrtCUDAProviderOptions cuda_options;
+  OrtROCMProviderOptions rocm_options;
   options.SetIntraOpNumThreads(threads);
   options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
@@ -279,6 +280,10 @@ Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
     case OnnxProvider::CUDA:
       cuda_options.device_id = gpu;
       options.AppendExecutionProvider_CUDA(cuda_options);
+      break;
+    case OnnxProvider::ROCM:
+      rocm_options.device_id = gpu;
+      options.AppendExecutionProvider_ROCM(rocm_options);
       break;
     case OnnxProvider::CPU:
       auto status = OrtSessionOptionsAppendExecutionProvider_CPU(options, 0);
@@ -427,9 +432,10 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
 }
 
 #ifdef USE_DML
-REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 63)
+REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 64)
 #endif
-REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 62)
+REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 63)
+REGISTER_NETWORK("onnx-rocm", MakeOnnxNetwork<OnnxProvider::ROCM>, 62)
 REGISTER_NETWORK("onnx-cpu", MakeOnnxNetwork<OnnxProvider::CPU>, 61)
 
 }  // namespace

@@ -492,33 +492,33 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
         "/attn_body/reshape", flow,
         builder->AddInitializer("/const/att_body_shape",
                                 Int64OnnxConst({-1, 90, kInputPlanes}, {3})));
-    std::string pad;
-    if (options_.batch_size < 0) {
-      pad = builder->Shape("/attn_body/shape", flow);
-      pad = builder->Slice("/attn_body/batch", pad, {0}, {1});
-      pad = builder->Concat(
-          "/attn_body/pos_encoding_shape",
-          {pad, builder->AddInitializer("/const/pos_encoding_shape",
-                                        Int64OnnxConst({90, 90}, {2}))},
-          0);
-    } else {
-      pad = builder->AddInitializer(
-          "/const/pos_encoding_shape",
-          Int64OnnxConst({options_.batch_size, 90, 90}, {3}));
-    }
-    pad = builder->Expand(
-        "/attn_body/expand",
-        builder->AddInitializer(
-            "/const/pos_encoding",
-            *GetWeghtsConverter(
-                std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
-                {1, 90, 90})),
-        pad);
-    flow = builder->Concat("/attn_body/padded_input", {flow, pad}, 2);
+//    std::string pad;
+//    if (options_.batch_size < 0) {
+//      pad = builder->Shape("/attn_body/shape", flow);
+//      pad = builder->Slice("/attn_body/batch", pad, {0}, {1});
+//      pad = builder->Concat(
+//          "/attn_body/pos_encoding_shape",
+//          {pad, builder->AddInitializer("/const/pos_encoding_shape",
+//                                        Int64OnnxConst({90, 90}, {2}))},
+//          0);
+//    } else {
+//      pad = builder->AddInitializer(
+//          "/const/pos_encoding_shape",
+//          Int64OnnxConst({options_.batch_size, 90, 90}, {3}));
+//    }
+//    pad = builder->Expand(
+//        "/attn_body/expand",
+//        builder->AddInitializer(
+//            "/const/pos_encoding",
+//            *GetWeghtsConverter(
+//                std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
+//                {1, 90, 90})),
+//        pad);
+//    flow = builder->Concat("/attn_body/padded_input", {flow, pad}, 2);
     flow = builder->Reshape(
         "/attn_body/reshape2", flow,
         builder->AddInitializer("/const/att_body_shape2",
-                                Int64OnnxConst({-1, 214}, {2})));
+                                Int64OnnxConst({-1, kInputPlanes}, {2})));
   }
 
   int embedding_size = weights.ip_emb_b.size();
@@ -526,7 +526,7 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
       "/attn_body/matmul", flow,
       *GetWeghtsConverter(
           weights.ip_emb_w,
-          {NumResBlocks() > 0 ? NumFilters() : 214, embedding_size}, {1, 0}));
+          {NumResBlocks() > 0 ? NumFilters() : kInputPlanes, embedding_size}, {1, 0}));
   flow = builder->Add("/attn_body/add", flow,
                       *GetWeghtsConverter(weights.ip_emb_b, {embedding_size}));
   flow = MakeActivation(builder, flow, "/attn_body", default_activation_);
