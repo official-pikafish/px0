@@ -70,8 +70,8 @@ Position::Position(const Position& parent, Move m)
   const bool is_zeroing = them_board_.ApplyMove(m);
   us_board_ = them_board_;
   us_board_.Mirror();
-  us_check = parent.them_check + us_board_.IsUnderCheck();
-  them_check = parent.us_check;
+  us_check = parent.them_check;
+  them_check = parent.us_check + us_board_.IsUnderCheck();
   if (is_zeroing) {
     rule50_ply_ = 0;
     us_check = 0;
