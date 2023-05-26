@@ -356,6 +356,8 @@ static BitBoard bishop_attacks_table[0x228];
 static BitBoard knight_attacks_table[0x380];
 static BitBoard knight_to_attacks_table[0x3E0];
 
+static BoardSquare BetweenSQ[90][90];
+
 // RankBB() and FileBB() return a bitboard representing all the squares on the given file or rank.
 constexpr BitBoard RankBB(int r) {
   return Rank0BB << (ChessBoard::FILE_NB * r);
@@ -628,6 +630,17 @@ void InitializeMagicBitboards() {
         PseudoAttacks[ChessBoard::ADVISOR][square] |= SafeDestination(b_sq, d);
       PseudoAttacks[ChessBoard::ADVISOR][square] &= Palace;
     }
+
+    PseudoAttacks[ChessBoard::KNIGHT][square] = LameLeaperAttack<ChessBoard::KNIGHT>(b_sq, 0);
+
+    for (unsigned square2 = 0; square2 < 90; square2++)
+    {
+      const BoardSquare b_sq2(square2);
+
+      if (PseudoAttacks[ChessBoard::KNIGHT][square].intersects(b_sq2.as_board()))
+        BetweenSQ[square][square2] = *LameLeaperPath<ChessBoard::KNIGHT_TO>(
+            Direction{b_sq2.row() - b_sq.row(), b_sq2.col() - b_sq.col()}, square).begin();
+    }
   }
 }
 
@@ -774,7 +787,7 @@ bool ChessBoard::IsSameMove(Move move1, Move move2) const {
 }
 
 template<bool ours>
-bool ChessBoard::IsLegalMove(Move move, BitBoard original) const {
+bool ChessBoard::IsLegalMove(Move move) const {
   // Occupied
   BitBoard occupied = our_pieces_ | their_pieces_;
   occupied.reset(move.from());
@@ -790,29 +803,25 @@ bool ChessBoard::IsLegalMove(Move move, BitBoard original) const {
   if (GetAttacks<ROOK>(ksq, occupied).get(their_king))
     return false;
 
-  // If the moving piece is a king, check whether the destination
-  // square is not under new attack after the move.
+  // If the moving piece is a king, check whether the destination square
+  // is not under attack after the move.
   if (ksq != our_king)
-    return !(CheckersTo<ours>(ksq, occupied) - original).as_int();
+    return !CheckersTo<ours>(ksq, occupied).as_int();
 
-  // A non-king move is legal if the king is not under new attack after the move.
+  // A non-king move is legal if the king is not under attack after the move.
   BitBoard checkers = CheckersTo<ours>(ksq, occupied);
   checkers.reset(move.to());
-  return !(checkers - original).as_int();
+  return !checkers.as_int();
 }
 
-int ChessBoard::MakeChase(BoardSquare from, BoardSquare to) const {
+int ChessBoard::MakeChase(BoardSquare to) const {
   if (flipped_)
-    from.Mirror(), to.Mirror();
-  return (id_board_[to.as_int()] << 4) + id_board_[from.as_int()];
+    to.Mirror();
+  return 1 << id_board_[to.as_int()];
 }
 
-ChaseMap ChessBoard::Chased() const {
-  ChaseMap chase;
-
-  // Checkers bitboard for both sides
-  BitBoard checkUs = CheckersTo(our_king_, our_pieces_ | their_pieces_);
-  BitBoard checkThem = CheckersTo<false>(their_king_, our_pieces_ | their_pieces_);
+uint16_t ChessBoard::Chased() const {
+  uint16_t chase = 0;
 
   // Add chase information for a type of attacker
   auto addChase = [&] (PieceType attackerType, const BitBoard& attacker) {
@@ -826,26 +835,24 @@ ChaseMap ChessBoard::Chased() const {
       BitBoard candidates = 0;
       if (attackerType == KNIGHT || attackerType == CANNON)
         candidates = attacks & rooks_;
-      if (attackerType == BISHOP || attackerType == ADVISOR)
-        candidates = attacks & (rooks_ | cannons_ | knights_);
       attacks -= candidates;
       for (const auto & to : candidates) {
-        if (IsLegalMove(Move(from, to), checkUs))
-          chase |= MakeChase(from, to);
+        if (IsLegalMove(Move(from, to)))
+          chase |= MakeChase(to);
       }
 
       // Attacks against potentially unprotected pieces
       for (const auto & to : attacks) {
         Move m = Move(from, to);
 
-        if (IsLegalMove(m, checkUs))
+        if (IsLegalMove(m))
         {
           bool trueChase = true;
           ChessBoard after(*this);
           after.ApplyMove(m);
-          BitBoard recaptures = RecapturesTo(to);
+          BitBoard recaptures = after.RecapturesTo(to);
           for (const auto& s : recaptures) {
-            if (after.IsLegalMove<false>(Move(s, to), checkThem)) {
+            if (after.IsLegalMove<false>(Move(s, to))) {
               trueChase = false;
               break;
             }
@@ -855,11 +862,11 @@ ChaseMap ChessBoard::Chased() const {
             // Exclude mutual/symmetric attacks except pins
             if (attacker.get(to)) {
               if (   (attackerType == KNIGHT && !(GetAttacks<KNIGHT>(to, our_pieces_ | their_pieces_).get(from)))
-                  || !IsLegalMove<false>(Move(to, from), checkThem))
-                chase |= MakeChase(from, to);
+                  || !IsLegalMove<false>(Move(to, from)))
+                chase |= MakeChase(to);
             }
             else
-              chase |= MakeChase(from, to);
+              chase |= MakeChase(to);
           }
         }
       }
@@ -874,6 +881,19 @@ ChaseMap ChessBoard::Chased() const {
   addChase(BISHOP, bishops_);
 
   return chase;
+}
+
+uint16_t ChessBoard::PinnedRookByKnight() const {
+  uint16_t rooks = 0;
+
+  // Get all knights attacking the king ignoring blockers
+  for (BoardSquare square : their_pieces_ & knights_ & PseudoAttacks[ChessBoard::KNIGHT][our_king_.as_int()]) {
+    BoardSquare square2 = BetweenSQ[our_king_.as_int()][square.as_int()];
+    if ((our_pieces_ & rooks_).intersects(square2.as_board()))
+      rooks |= (1 << id_board_[square2.as_int()]);
+  }
+
+  return rooks;
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {

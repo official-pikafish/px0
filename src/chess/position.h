@@ -62,6 +62,9 @@ class Position {
   // Number of ply with no captures.
   int GetRule50Ply() const { return rule50_ply_; }
 
+  // Rule 50 but exclude extra checks.
+  int GetRealRule50Ply() const { return rule50_ply_ - 2 * (std::max(0, us_check - 10) + std::max(0, them_check - 10)); }
+
   // Gets board from the point of view of player to move.
   const ChessBoard& GetBoard() const { return us_board_; }
   // Gets board from the point of view of opponent.
@@ -81,6 +84,8 @@ class Position {
 
   // How many half-moves without capture was there.
   int rule50_ply_ = 0;
+  // Both sides check counting
+  int us_check = 0, them_check = 0;
   // How many repetitions this position had before. For new positions it's 0.
   int repetitions_;
   // How many half-moves since the position was repeated or 0.

@@ -70,7 +70,13 @@ Position::Position(const Position& parent, Move m)
   const bool is_zeroing = them_board_.ApplyMove(m);
   us_board_ = them_board_;
   us_board_.Mirror();
-  if (is_zeroing) rule50_ply_ = 0;
+  us_check = parent.them_check + us_board_.IsUnderCheck();
+  them_check = parent.us_check;
+  if (is_zeroing) {
+    rule50_ply_ = 0;
+    us_check = 0;
+    them_check = 0;
+  }
 }
 
 Position::Position(const ChessBoard& board, int rule50_ply, int game_ply)
@@ -104,7 +110,7 @@ GameResult PositionHistory::ComputeGameResult() const {
     return IsBlackToMove() ? result : -result;
   }
   if (!board.HasMatingMaterial()) return GameResult::DRAW;
-  if (Last().GetRule50Ply() >= 120) return GameResult::DRAW;
+  if (Last().GetRealRule50Ply() >= 120) return GameResult::DRAW;
 
   return GameResult::UNDECIDED;
 }
@@ -132,27 +138,40 @@ GameResult PositionHistory::RuleJudge() const {
 
   bool checkThem = last.GetBoard().IsUnderCheck();
   bool checkUs = positions_[size(positions_) - 2].GetBoard().IsUnderCheck();
-  uint16_t chaseThem = last.GetThemBoard().Chased() & positions_[size(positions_) - 2].GetBoard().Chased();
-  uint16_t chaseUs = positions_[size(positions_) - 2].GetThemBoard().Chased() &
-                     positions_[size(positions_) - 3].GetBoard().Chased();
+  uint16_t chaseThem = checkThem ? 0 : last.GetThemBoard().Chased();
+  uint16_t chaseUs = checkUs ? 0 : positions_[size(positions_) - 2].GetThemBoard().Chased() & ~last.GetBoard().Chased();
+  uint16_t rooksThem = checkThem ? 0 : chaseThem & last.GetBoard().PinnedRookByKnight();
+  uint16_t rooksUs = checkUs ? 0 : chaseUs & positions_[size(positions_) - 2].GetBoard().PinnedRookByKnight();
 
   for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
     const auto& pos = positions_[idx];
-    checkThem &= pos.GetBoard().IsUnderCheck();
+    if (pos.GetBoard().IsUnderCheck()) {
+      chaseThem = rooksThem = 0;
+      checkThem &= true;
+    } else
+      checkThem = false;
+    if (chaseThem)
+      chaseThem &= pos.GetThemBoard().Chased() & ~positions_[idx + 1].GetBoard().Chased();
+    if (rooksThem)
+      rooksThem &= chaseThem & pos.GetBoard().PinnedRookByKnight();
 
     if (pos.GetBoard() == last.GetBoard() && pos.GetRepetitions() == 0) {
       return (checkThem || checkUs) ? (!checkUs ? GameResult::BLACK_WON : !checkThem ? GameResult::WHITE_WON : GameResult::DRAW)
+           : (rooksThem || rooksUs) ? (!rooksUs ? GameResult::BLACK_WON : !rooksThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : (chaseThem || chaseUs) ? (!chaseUs ? GameResult::BLACK_WON : !chaseThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : GameResult::DRAW;
     }
 
     if (idx - 1 >= 0) {
-      checkUs &= positions_[idx - 1].GetBoard().IsUnderCheck();
-      chaseThem &= pos.GetThemBoard().Chased() & positions_[idx - 1].GetBoard().Chased();
-      ChaseMap chase = positions_[idx - 1].GetThemBoard().Chased();
-      if (idx - 2 >= 0)
-        chase = chase & positions_[idx - 2].GetBoard().Chased();
-      chaseUs &= chase;
+      if (positions_[idx - 1].GetBoard().IsUnderCheck()) {
+          chaseUs = rooksUs = 0;
+          checkUs &= true;
+      } else
+          checkUs = false;
+      if (chaseUs)
+          chaseUs &= positions_[idx - 1].GetThemBoard().Chased() & ~pos.GetBoard().Chased();
+      if (rooksUs)
+          rooksUs &= chaseUs & positions_[idx - 1].GetBoard().PinnedRookByKnight();
     }
   }
 

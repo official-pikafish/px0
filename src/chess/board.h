@@ -38,35 +38,6 @@ namespace lczero {
 // Initializes internal magic bitboard structures.
 void InitializeMagicBitboards();
 
-// For chasing detection
-union ChaseMap {
-  uint64_t attacks[4] { };
-  uint16_t victims[16];
-
-  // For adding victim <- attacker pair
-  void operator |= (int id) {
-    attacks[id >> 6] |= 1ULL << (id & 63);
-  }
-
-  // For exact diff
-  ChaseMap& operator & (const ChaseMap &rhs) {
-    attacks[0] &= ~rhs.attacks[0];
-    attacks[1] &= ~rhs.attacks[1];
-    attacks[2] &= ~rhs.attacks[2];
-    attacks[3] &= ~rhs.attacks[3];
-    return *this;
-  }
-
-  // For victims extraction
-  operator uint16_t() {
-    uint16_t ret = 0;
-    for (int i = 0; i < 16; ++i)
-      if (this->victims[i])
-        ret |= 1 << i;
-    return ret;
-  }
-};
-
 // Represents a board position.
 // Unlike most chess engines, the board is mirrored for black.
 class ChessBoard {
@@ -110,13 +81,15 @@ class ChessBoard {
   MoveList GenerateLegalMoves() const;
   // Check whether pseudolegal move is legal.
   template<bool ours = true>
-  bool IsLegalMove(Move move, BitBoard original = 0) const;
+  bool IsLegalMove(Move move) const;
   // Returns whether two moves are actually the same move in the position.
   bool IsSameMove(Move move1, Move move2) const;
   // Return a chase information in chase map
-  int MakeChase(BoardSquare from, BoardSquare to) const;
+  int MakeChase(BoardSquare to) const;
   // Returns chasing information for "ours" (white)
-  ChaseMap Chased() const;
+  uint16_t Chased() const;
+  // Pinned Rook By Knight
+  uint16_t PinnedRookByKnight() const;
 
   uint64_t Hash() const {
     return HashCat({our_pieces_.as_int(), their_pieces_.as_int(),

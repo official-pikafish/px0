@@ -161,6 +161,14 @@ TEST(PositionHistory, RuleJudgeWhiteChase) {
   history.Append(Move("h6g6", true));
   history.Append(Move("h2g2", false));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
+
+  board.SetFromFen("3k5/9/9/9/9/9/9/9/1r2ARn2/4K4 b");
+  history.Reset(board, 2, 30);
+  history.Append(Move("b1b0", true));
+  history.Append(Move("e1d0", false));
+  history.Append(Move("b0b1", true));
+  history.Append(Move("d0e1", false));
+  EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 }
 
 TEST(PositionHistory, RuleJudgeBlackChase) {

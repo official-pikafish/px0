@@ -1836,7 +1836,7 @@ void SearchWorker::ExtendNode(Node* node, int depth,
       return;
     }
 
-    if (history->Last().GetRule50Ply() >= 120) {
+    if (history->Last().GetRealRule50Ply() >= 120) {
       node->MakeTerminal(GameResult::DRAW);
       return;
     }
