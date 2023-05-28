@@ -770,7 +770,7 @@ BitBoard ChessBoard::RecapturesTo(const BoardSquare &sq) const {
   // Advisors.
   attackers |= GetAttacks<ADVISOR>(sq) & advisors_;
   // Cannons.
-  attackers |= GetAttacks<CANNON>(sq) & cannons_;
+  attackers |= GetAttacks<CANNON>(sq, occupied) & cannons_;
   // Pawns.
   attackers |= GetAttacks<PAWN_TO_OURS>(sq) & pawns_;
   // Knights.

@@ -225,6 +225,14 @@ TEST(PositionHistory, RuleJudgeDraw) {
   history.Append(Move("h7g7", true));
   history.Append(Move("h1g1", false));
   EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
+
+  board.SetFromFen("4c4/3k5/4b3b/9/9/2B4N1/4p4/3A5/2p1A4/5K3 w - - 2 30");
+  history.Reset(board, 2, 30);
+  history.Append(Move("h4g2", false));
+  history.Append(Move("e3f3", true));
+  history.Append(Move("g2h4", false));
+  history.Append(Move("f3e3", true));
+  EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
 }
 
 }  // namespace lczero
