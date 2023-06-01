@@ -52,7 +52,7 @@
 namespace lczero {
 namespace {
 
-enum class OnnxProvider { CPU, ROCM, CUDA, DML };
+enum class OnnxProvider { CPU, ROCM, CUDA, TRT, DML };
 
 class OnnxNetwork;
 
@@ -251,8 +251,9 @@ void OnnxComputation<DataType>::ComputeBlocking() {
 }
 
 Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
-                               int batch_size) {
+                               int batch_size, bool fp16) {
   Ort::SessionOptions options;
+  OrtTensorRTProviderOptionsV2 trt_options{ };
   OrtCUDAProviderOptions cuda_options;
   OrtROCMProviderOptions rocm_options;
   options.SetIntraOpNumThreads(threads);
@@ -276,6 +277,12 @@ Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
 #else
       throw Exception("ONNX backend internal error.");
 #endif
+      break;
+    case OnnxProvider::TRT:
+      trt_options.device_id = gpu;
+      trt_options.trt_fp16_enable = fp16;
+      trt_options.trt_max_workspace_size = 2147483648;
+      options.AppendExecutionProvider_TensorRT_V2(trt_options);
       break;
     case OnnxProvider::CUDA:
       cuda_options.device_id = gpu;
@@ -319,7 +326,7 @@ OnnxNetwork::OnnxNetwork(const WeightsFile& file, const OptionsDict&,
     session_.emplace_back(
         onnx_env_, file.onnx_model().model().data(),
         file.onnx_model().model().size(),
-        GetOptions(provider, gpu, threads, batch_size_ * step));
+        GetOptions(provider, gpu, threads, batch_size_ * step, fp16));
 
   const auto& md = file.onnx_model();
   if (!md.has_input_planes()) {
@@ -360,7 +367,8 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
   int gpu = opts.GetOrDefault<int>("gpu", 0);
 
   int batch_size =
-      opts.GetOrDefault<int>("batch", kProvider == OnnxProvider::DML ? 16 : -1);
+      opts.GetOrDefault<int>("batch", kProvider == OnnxProvider::DML ? 16
+                                    : kProvider == OnnxProvider::TRT ? 256 : -1);
 
   int steps =
       opts.GetOrDefault<int>("steps", kProvider == OnnxProvider::DML ? 4 : 1);
@@ -432,9 +440,10 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
 }
 
 #ifdef USE_DML
-REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 64)
+REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 65)
 #endif
-REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 63)
+REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 64)
+REGISTER_NETWORK("onnx-trt", MakeOnnxNetwork<OnnxProvider::TRT>, 63)
 REGISTER_NETWORK("onnx-rocm", MakeOnnxNetwork<OnnxProvider::ROCM>, 62)
 REGISTER_NETWORK("onnx-cpu", MakeOnnxNetwork<OnnxProvider::CPU>, 61)
 
