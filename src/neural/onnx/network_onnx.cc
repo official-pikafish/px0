@@ -253,7 +253,7 @@ void OnnxComputation<DataType>::ComputeBlocking() {
 Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
                                int batch_size, bool fp16) {
   Ort::SessionOptions options;
-  OrtTensorRTProviderOptionsV2 trt_options{ };
+  OrtTensorRTProviderOptions trt_options{ };
   OrtCUDAProviderOptions cuda_options;
   OrtROCMProviderOptions rocm_options;
   options.SetIntraOpNumThreads(threads);
@@ -282,7 +282,7 @@ Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
       trt_options.device_id = gpu;
       trt_options.trt_fp16_enable = fp16;
       trt_options.trt_max_workspace_size = 2147483648;
-      options.AppendExecutionProvider_TensorRT_V2(trt_options);
+      options.AppendExecutionProvider_TensorRT(trt_options);
       break;
     case OnnxProvider::CUDA:
       cuda_options.device_id = gpu;
