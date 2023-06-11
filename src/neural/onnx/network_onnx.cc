@@ -442,8 +442,8 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
 #ifdef USE_DML
 REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 65)
 #endif
-REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 64)
-REGISTER_NETWORK("onnx-trt", MakeOnnxNetwork<OnnxProvider::TRT>, 63)
+REGISTER_NETWORK("onnx-trt", MakeOnnxNetwork<OnnxProvider::TRT>, 64)
+REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 63)
 REGISTER_NETWORK("onnx-rocm", MakeOnnxNetwork<OnnxProvider::ROCM>, 62)
 REGISTER_NETWORK("onnx-cpu", MakeOnnxNetwork<OnnxProvider::CPU>, 61)
 

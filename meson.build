@@ -438,7 +438,7 @@ if get_option('build_backends')
   cu_blas = cc.find_library('cublas', dirs: cudnn_libdirs, required: false)
   cu_dnn = cc.find_library('cudnn', dirs: cudnn_libdirs, required: false)
   cu_dart = cc.find_library('cudart', dirs: cudnn_libdirs, required: false)
-  nvcc = find_program('nvcc', 'C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.1/bin/nvcc.exe', '/usr/local/cuda/bin/nvcc', '/opt/cuda/bin/nvcc',
+  nvcc = find_program('nvcc', '/usr/local/cuda/bin/nvcc', '/opt/cuda/bin/nvcc',
                       required: false)
 
   if (get_option('cudnn') or get_option('plain_cuda')) and cu_blas.found() and cu_dart.found() and nvcc.found()

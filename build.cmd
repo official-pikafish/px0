@@ -63,7 +63,7 @@ meson build --backend %backend% --buildtype release -Ddx=%DX12% -Dcudnn=%CUDNN% 
 -Dmkl_include="%MKL_PATH%\include" -Dmkl_libdirs="%MKL_PATH%\lib\intel64" -Ddnnl_dir="%DNNL_PATH%" ^
 -Dopencl_libdirs="%OPENCL_LIB_PATH%" -Dopencl_include="%OPENCL_INCLUDE_PATH%" ^
 -Dopenblas_include="%OPENBLAS_PATH%\include" -Dopenblas_libdirs="%OPENBLAS_PATH%\lib" ^
--Ddefault_library=static
+-Ddefault_library=static -Db_vscrt=md
 
 if errorlevel 1 exit /b
 
