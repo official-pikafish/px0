@@ -69,18 +69,18 @@ class ChessBoard {
   // counter should be removed.
   bool ApplyMove(Move move);
   // Checkers BitBoard to square sq
-  template<bool ours = true>
+  template<bool our = true>
   BitBoard CheckersTo(const BoardSquare &ksq, const BitBoard& occupied) const;
   BitBoard RecapturesTo(const BoardSquare &sq) const;
   // Checks if "our" (white) king is under check.
-  bool IsUnderCheck() const { return CheckersTo(our_king_, our_pieces_ | their_pieces_).as_int(); }
+  bool IsUnderCheck() const { return bool(CheckersTo(our_king_, our_pieces_ | their_pieces_).as_int()); }
 
   // Checks whether at least one of the sides has mating material.
   bool HasMatingMaterial() const;
   // Generates legal moves.
   MoveList GenerateLegalMoves() const;
   // Check whether pseudolegal move is legal.
-  template<bool ours = true>
+  template<bool our = true>
   bool IsLegalMove(Move move) const;
   // Returns whether two moves are actually the same move in the position.
   bool IsSameMove(Move move1, Move move2) const;

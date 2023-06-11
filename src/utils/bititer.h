@@ -30,6 +30,8 @@
 #include <iterator>
 #ifdef _MSC_VER
 #include <intrin.h>
+#include <__msvc_int128.hpp>
+using __uint128_t = std::_Unsigned128;
 #endif
 
 namespace lczero {
@@ -37,14 +39,14 @@ namespace lczero {
 inline unsigned long GetLowestBit(__uint128_t value) {
 #if defined(_MSC_VER) // MSVC
   unsigned long idx;
-  if (uint64_t(value))
+  if (value._Word[0])
   {
-    _BitScanForward64(&idx, value);
+    _BitScanForward64(&idx, value._Word[0]);
     return idx;
   }
   else
   {
-    _BitScanForward64(&idx, value >> 64);
+    _BitScanForward64(&idx, value._Word[1]);
     return idx + 64;
   }
 #else // Assumed gcc or compatible compiler
@@ -111,7 +113,7 @@ class IterateBits {
  public:
   IterateBits(__uint128_t value) : value_(value) {}
   BitIterator<int> begin() { return value_; }
-  BitIterator<int> end() { return 0; }
+  BitIterator<int> end() { return __uint128_t(0); }
 
  private:
   __uint128_t value_;

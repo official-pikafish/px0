@@ -36,7 +36,7 @@
 namespace lczero {
 namespace cudnn_backend {
 namespace {
-constexpr int kInputPlanes = 112;
+constexpr int kInputPlanes = 124;
 }  // namespace
 
 /////////////////////////////////////////////////////////////////////////////
@@ -449,17 +449,17 @@ void batchNorm(T* output, const T* input, const T* skipInput, int N, int C,
 }
 
 __global__ void expandPlanes_kernel_Fp32_NCHW(float* output,
-                                              const uint64_t* masks,
+                                              const __uint128_t* masks,
                                               const float* values, int n) {
-  // Block size of 256, same mask/val for 64 consecutive threads.
-  constexpr int kNumShmemElements = 256 / 64;
+  // Block size of 360, same mask/val for 90 consecutive threads.
+  constexpr int kNumShmemElements = 360 / 90;
 
-  __shared__ uint64_t shMasks[kNumShmemElements];
+  __shared__ __uint128_t shMasks[kNumShmemElements];
   __shared__ float shVals[kNumShmemElements];
 
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  int planeIndex = index >> 6;
+  int planeIndex = index / 90;
 
   if (planeIndex >= n) return;
 
@@ -470,22 +470,22 @@ __global__ void expandPlanes_kernel_Fp32_NCHW(float* output,
   }
   __syncthreads();
 
-  uint64_t mask = shMasks[threadIdx.x >> 6];
+  __uint128_t mask = shMasks[threadIdx.x / 90];
 
-  int sqIndex = index & 0x3F;
+  int sqIndex = index % 90;
   float op = 0;
 
-  bool set = !!(mask & (1ull << sqIndex));
+  bool set = !!(mask & (__uint128_t(1) << sqIndex));
   if (set) {
-    op = shVals[threadIdx.x >> 6];
+    op = shVals[threadIdx.x / 90];
   }
   output[index] = op;
 }
 
-void expandPlanes_Fp32_NCHW(float* output, const uint64_t* masks,
+void expandPlanes_Fp32_NCHW(float* output, const __uint128_t* masks,
                             const float* values, int n, cudaStream_t stream) {
-  int threads = n * 8 * 8;  // Each thread writes a single element.
-  const int blockSize = 256;
+  int threads = n * 10 * 9;  // Each thread writes a single element.
+  const int blockSize = 360;
   int blocks = DivUp(threads, blockSize);
   expandPlanes_kernel_Fp32_NCHW<<<blocks, blockSize, 0, stream>>>(output, masks,
                                                                   values, n);
@@ -525,17 +525,17 @@ void expandPlanes_Fp16_NHWC(half* output, const uint64_t* masks,
 }
 
 __global__ void expandPlanes_kernel_Fp16_NCHW(half* output,
-                                              const uint64_t* masks,
+                                              const __uint128_t* masks,
                                               const float* values, int n) {
-  // block size of 256, same mask/val for 64 consecutive threads
-  constexpr int kNumShmemElements = 256 / 64;
+  // block size of 360, same mask/val for 90 consecutive threads
+  constexpr int kNumShmemElements = 360 / 90;
 
-  __shared__ uint64_t shMasks[kNumShmemElements];
+  __shared__ __uint128_t shMasks[kNumShmemElements];
   __shared__ half shVals[kNumShmemElements];
 
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  int planeIndex = index >> 6;
+  int planeIndex = index / 90;
 
   if (planeIndex >= n) return;
 
@@ -546,22 +546,22 @@ __global__ void expandPlanes_kernel_Fp16_NCHW(half* output,
   }
   __syncthreads();
 
-  uint64_t mask = shMasks[threadIdx.x >> 6];
+  __uint128_t mask = shMasks[threadIdx.x / 90];
 
-  int sqIndex = index & 0x3F;
+  int sqIndex = index % 90;
   half op = 0;
 
-  bool set = !!(mask & (1ull << sqIndex));
+  bool set = !!(mask & (__uint128_t(1) << sqIndex));
   if (set) {
-    op = (half)shVals[threadIdx.x >> 6];
+    op = (half)shVals[threadIdx.x / 90];
   }
   output[index] = op;
 }
 
-void expandPlanes_Fp16_NCHW(half* output, const uint64_t* masks,
+void expandPlanes_Fp16_NCHW(half* output, const __uint128_t* masks,
                             const float* values, int n, cudaStream_t stream) {
-  int threads = n * 8 * 8;  // each thread writes a single element
-  const int blockSize = 256;
+  int threads = n * 10 * 9;  // each thread writes a single element
+  const int blockSize = 360;
   int blocks = DivUp(threads, blockSize);
   expandPlanes_kernel_Fp16_NCHW<<<blocks, blockSize, 0, stream>>>(output, masks,
                                                                   values, n);
@@ -1235,26 +1235,26 @@ __global__ void preprocess_for_attention_body_kernel(T* output, const T* input,
   T op;
   if (c >= kInputPlanes) {
     // concatenate from fixed pos encoding array
-    op = (T)(encoding[64 * hw + (c - kInputPlanes)]);
+    op = (T)(encoding[90 * hw + (c - kInputPlanes)]);
   } else {
-    op = input[n * kInputPlanes * 64 + c * 64 + hw];  // nchw
+    op = input[n * kInputPlanes * 90 + c * 90 + hw];  // nchw
   }
 
-  constexpr int outputC = kInputPlanes + kNumPosEncodingChannels;
+  constexpr int outputC = kInputPlanes;// + kNumPosEncodingChannels;
 
   // convert to nhwc
-  output[n * 64 * outputC + hw * outputC + c] = op;
+  output[n * 90 * outputC + hw * outputC + c] = op;
 }
 
 template <typename T>
 void inputPreprocessForAttentionBody(T* output, const T* input,
                                      const float* encoding, int N,
                                      cudaStream_t stream) {
-  // N * 64 blocks
+  // N * 90 blocks
   // (kInputPlanes + kNumPosEncodingChannels) threads
   // Each thread computes a single output element
-  dim3 gridSize = dim3(N, 64);
-  int blockSize = kInputPlanes + kNumPosEncodingChannels;
+  dim3 gridSize = dim3(N, 90);
+  int blockSize = kInputPlanes;// + kNumPosEncodingChannels;
   preprocess_for_attention_body_kernel<T>
       <<<gridSize, blockSize, 0, stream>>>(output, input, encoding);
 }
@@ -1284,7 +1284,7 @@ void applyInputGating(T* output, const T* input, const T* mult, const T* add,
   // Block y position indicates batch
   // Each thread computes a single output element
   dim3 blockSize, gridSize;
-  blockSize.x = DivUp(1024, HW);
+  blockSize.x = DivUp(960, HW);
   blockSize.y = HW;
   blockSize.z = 1;
   gridSize.x = DivUp(C, blockSize.x);

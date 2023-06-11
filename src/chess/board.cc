@@ -36,10 +36,14 @@
 
 #include "utils/exception.h"
 
-#if not defined(NO_PEXT)
+#ifndef NO_PEXT
 // Include header for pext instruction.
 #include <immintrin.h>
+#ifdef _MSC_VER
+#define pext(b, m, s) ((_pext_u64(b._Word[1], m._Word[1]) << s) | _pext_u64(b._Word[0], m._Word[0]))
+#else
 #define pext(b, m, s) ((_pext_u64(b >> 64, m >> 64) << s) | _pext_u64(b, m))
+#endif
 #endif
 
 namespace lczero {
@@ -381,7 +385,7 @@ inline BitBoard SafeDestination(BoardSquare s, Direction step) {
 template <ChessBoard::PieceType pt>
 static BitBoard SlidingAttack(BoardSquare sq, BitBoard occupied) {
   assert(pt == ChessBoard::ROOK || pt == ChessBoard::CANNON);
-  BitBoard attack = 0;
+  BitBoard attack = BitBoard(0);
 
   for (auto const& d : { NORTH, SOUTH, WEST, EAST })
   {
@@ -406,7 +410,7 @@ static BitBoard SlidingAttack(BoardSquare sq, BitBoard occupied) {
 
 template <ChessBoard::PieceType pt>
 BitBoard LameLeaperPath(Direction d, BoardSquare s) {
-  BitBoard b = 0;
+  BitBoard b = BitBoard(0);
   BoardSquare to = s + d;
   if (!to.IsValid() || Distance(s, to) >= 4)
     return b;
@@ -435,7 +439,7 @@ BitBoard LameLeaperPath(Direction d, BoardSquare s) {
 
 template <ChessBoard::PieceType pt>
 BitBoard LameLeaperPath(BoardSquare s) {
-  BitBoard b = 0;
+  BitBoard b = BitBoard(0);
   for (const auto& d : pt == ChessBoard::BISHOP ? kBishopDirections : kKnightDirections)
     b |= LameLeaperPath<pt>(d, s);
   if (pt == ChessBoard::BISHOP)
@@ -445,7 +449,7 @@ BitBoard LameLeaperPath(BoardSquare s) {
 
 template <ChessBoard::PieceType pt>
 BitBoard LameLeaperAttack(BoardSquare s, BitBoard occupied) {
-  BitBoard b = 0;
+  BitBoard b = BitBoard(0);
   for (const auto& d : pt == ChessBoard::BISHOP  ? kBishopDirections : kKnightDirections)
   {
     BoardSquare to = s + d;
@@ -498,7 +502,7 @@ static void BuildAttacksTable(MagicParams* magic_params,
     BitBoard edges = ((Rank0BB | Rank9BB) - RankBB(b_sq.row())) | ((FileABB | FileIBB) - FileBB(b_sq.col()));
 
     // Calculate relevant occupancy masks.
-    BitBoard mask = pt == ChessBoard::ROOK   ? SlidingAttack<pt>(b_sq, 0) :
+    BitBoard mask = pt == ChessBoard::ROOK   ? SlidingAttack<pt>(b_sq, BitBoard(0)) :
                     pt == ChessBoard::CANNON ? rook_magic_params[square].mask_ :
                                                LameLeaperPath<pt>(square)  ;
     if (pt != ChessBoard::KNIGHT_TO)
@@ -523,7 +527,7 @@ static void BuildAttacksTable(MagicParams* magic_params,
 
     // Clear attacks table (used for sanity check later on).
     for (int i = 0; i < (1 << mask.count()); i++) {
-      m.attacks_table_[i] = 0;
+      m.attacks_table_[i] = BitBoard(0);
     }
 
     // Build square attacks table for every possible relevant occupancy
@@ -631,7 +635,7 @@ void InitializeMagicBitboards() {
       PseudoAttacks[ChessBoard::ADVISOR][square] &= Palace;
     }
 
-    PseudoAttacks[ChessBoard::KNIGHT][square] = LameLeaperAttack<ChessBoard::KNIGHT>(b_sq, 0);
+    PseudoAttacks[ChessBoard::KNIGHT][square] = LameLeaperAttack<ChessBoard::KNIGHT>(b_sq, BitBoard(0));
 
     for (unsigned square2 = 0; square2 < 90; square2++)
     {
@@ -748,22 +752,22 @@ bool ChessBoard::ApplyMove(Move move) {
   return reset_50_moves;
 }
 
-template<bool ours>
+template<bool our>
 BitBoard ChessBoard::CheckersTo(const BoardSquare& ksq, const BitBoard &occupied) const {
-  BitBoard checkers = 0;
+  BitBoard checkers = BitBoard(0);
   // Rooks.
   checkers |= GetAttacks<ROOK>(ksq, occupied) & rooks_;
   // Cannons.
   checkers |= GetAttacks<CANNON>(ksq, occupied) & cannons_;
   // Pawns.
-  checkers |= GetAttacks<ours ? PAWN_TO_OURS : PAWN_TO_THEIRS>(ksq) & pawns_;
+  checkers |= GetAttacks<our ? PAWN_TO_OURS : PAWN_TO_THEIRS>(ksq) & pawns_;
   // Knights.
   checkers |= GetAttacks<KNIGHT_TO>(ksq, occupied) & knights_;
-  return checkers & (ours ? their_pieces_ : our_pieces_);
+  return checkers & (our ? their_pieces_ : our_pieces_);
 }
 
 BitBoard ChessBoard::RecapturesTo(const BoardSquare &sq) const {
-  BitBoard attackers = 0;
+  BitBoard attackers = BitBoard(0);
   BitBoard occupied = our_pieces_ | their_pieces_;
   // Rooks.
   attackers |= GetAttacks<ROOK>(sq, occupied) & rooks_;
@@ -786,7 +790,7 @@ bool ChessBoard::IsSameMove(Move move1, Move move2) const {
   return move1 == move2;
 }
 
-template<bool ours>
+template<bool our>
 bool ChessBoard::IsLegalMove(Move move) const {
   // Occupied
   BitBoard occupied = our_pieces_ | their_pieces_;
@@ -795,7 +799,7 @@ bool ChessBoard::IsLegalMove(Move move) const {
 
   BoardSquare our_king = our_king_;
   BoardSquare their_king = their_king_;
-  if (!ours)
+  if (!our)
     std::swap(our_king, their_king);
 
   // Flying general
@@ -806,10 +810,10 @@ bool ChessBoard::IsLegalMove(Move move) const {
   // If the moving piece is a king, check whether the destination square
   // is not under attack after the move.
   if (ksq != our_king)
-    return !CheckersTo<ours>(ksq, occupied).as_int();
+    return !CheckersTo<our>(ksq, occupied).as_int();
 
   // A non-king move is legal if the king is not under attack after the move.
-  BitBoard checkers = CheckersTo<ours>(ksq, occupied);
+  BitBoard checkers = CheckersTo<our>(ksq, occupied);
   checkers.reset(move.to());
   return !checkers.as_int();
 }
@@ -832,7 +836,7 @@ uint16_t ChessBoard::Chased() const {
       attacks -= kings() | (pawns_ & HalfBB[1]);
 
       // Attacks against stronger pieces
-      BitBoard candidates = 0;
+      BitBoard candidates = BitBoard(0);
       if (attackerType == KNIGHT || attackerType == CANNON)
         candidates = attacks & rooks_;
       attacks -= candidates;

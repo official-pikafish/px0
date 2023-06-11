@@ -36,116 +36,6 @@
 
 namespace lczero {
 
-#ifndef __GNUC__
-// Manually support __uint128_t for non-GNU compilers
-struct __uint128_t {
-  uint64_t b64[2];
-
-  constexpr __uint128_t() : b64{ 0, 0 } {}
-  constexpr __uint128_t(uint64_t i) : b64{ 0, i } {}
-  constexpr __uint128_t(uint64_t hi, uint64_t lo) : b64{ hi, lo } {};
-
-  constexpr operator bool() const {
-    return b64[0] || b64[1];
-  }
-
-  constexpr operator long long unsigned() const {
-    return b64[1];
-  }
-
-  constexpr operator unsigned() const {
-    return b64[1];
-  }
-
-  constexpr __uint128_t operator << (const unsigned int bits) const {
-    return __uint128_t(bits >= 64 ? b64[1] << (bits - 64)
-                       : bits == 0 ? b64[0]
-                                   : ((b64[0] << bits) | (b64[1] >> (64 - bits))),
-                       bits >= 64 ? 0 : b64[1] << bits);
-  }
-
-  constexpr __uint128_t operator >> (const unsigned int bits) const {
-    return __uint128_t(bits >= 64 ? 0 : b64[0] >> bits,
-                       bits >= 64 ? b64[0] >> (bits - 64)
-                       : bits == 0 ? b64[1]
-                                   : ((b64[1] >> bits) | (b64[0] << (64 - bits))));
-  }
-
-  constexpr __uint128_t operator << (const int bits) const {
-    return *this << unsigned(bits);
-  }
-
-  constexpr __uint128_t operator >> (const int bits) const {
-    return *this >> unsigned(bits);
-  }
-
-  constexpr bool operator == (const __uint128_t y) const {
-    return (b64[0] == y.b64[0]) && (b64[1] == y.b64[1]);
-  }
-
-  constexpr bool operator != (const __uint128_t y) const {
-    return !(*this == y);
-  }
-
-  inline __uint128_t& operator |=(const __uint128_t x) {
-    b64[0] |= x.b64[0];
-    b64[1] |= x.b64[1];
-    return *this;
-  }
-  inline __uint128_t& operator &=(const __uint128_t x) {
-    b64[0] &= x.b64[0];
-    b64[1] &= x.b64[1];
-    return *this;
-  }
-  inline __uint128_t& operator ^=(const __uint128_t x) {
-    b64[0] ^= x.b64[0];
-    b64[1] ^= x.b64[1];
-    return *this;
-  }
-
-  constexpr __uint128_t operator ~ () const {
-    return __uint128_t(~b64[0], ~b64[1]);
-  }
-
-  constexpr __uint128_t operator - () const {
-    return __uint128_t(-b64[0] - (b64[1] > 0), -b64[1]);
-  }
-
-  constexpr __uint128_t operator | (const __uint128_t x) const {
-    return __uint128_t(b64[0] | x.b64[0], b64[1] | x.b64[1]);
-  }
-
-  constexpr __uint128_t operator & (const __uint128_t x) const {
-    return __uint128_t(b64[0] & x.b64[0], b64[1] & x.b64[1]);
-  }
-
-  constexpr __uint128_t operator ^ (const __uint128_t x) const {
-    return __uint128_t(b64[0] ^ x.b64[0], b64[1] ^ x.b64[1]);
-  }
-
-  constexpr __uint128_t operator - (const __uint128_t x) const {
-    return __uint128_t(b64[0] - x.b64[0] - (b64[1] < x.b64[1]), b64[1] - x.b64[1]);
-  }
-
-  constexpr __uint128_t operator - (const int x) const {
-    return *this - __uint128_t(x);
-  }
-
-  inline __uint128_t operator * (const __uint128_t x) const {
-    uint64_t a_lo = (uint32_t)b64[1];
-    uint64_t a_hi = b64[1] >> 32;
-    uint64_t b_lo = (uint32_t)x.b64[1];
-    uint64_t b_hi = x.b64[1] >> 32;
-
-    uint64_t t1 = (a_hi * b_lo) + ((a_lo * b_lo) >> 32);
-    uint64_t t2 = (a_lo * b_hi) + (t1 & 0xFFFFFFFF);
-
-    return __uint128_t(b64[0] * x.b64[1] + b64[1] * x.b64[0] + (a_hi * b_hi) + (t1 >> 32) + (t2 >> 32),
-                       (t2 << 32) + (a_lo * b_lo & 0xFFFFFFFF));
-  }
-};
-#endif
-
 // Stores a coordinates of a single square.
 class BoardSquare {
  public:
@@ -239,7 +129,7 @@ class BitBoard {
     std::uint64_t low = board_;
     return _pop_count(high) + _pop_count(low);
 #elif defined(_MSC_VER)
-    return _mm_popcnt_u64(board_ >> 64) + _mm_popcnt_u64(board_);
+    return _mm_popcnt_u64(board_._Word[1]) + _mm_popcnt_u64(board_._Word[0]);
 #else
     return __builtin_popcountll(board_ >> 64) + __builtin_popcountll(board_);
 #endif
@@ -285,7 +175,7 @@ class BitBoard {
   // Gets value of a square.
   bool get(BoardSquare square) const { return get(square.as_int()); }
   bool get(std::uint8_t pos) const {
-    return board_ & (__uint128_t(1) << pos);
+    return bool(board_ & (__uint128_t(1) << pos));
   }
   bool get(int row, int col) const { return get(BoardSquare(row, col)); }
 
@@ -293,7 +183,7 @@ class BitBoard {
   bool empty() const { return board_ == 0; }
 
   // Checks whether two bitboards have common bits set.
-  bool intersects(const BitBoard& other) const { return board_ & other.board_; }
+  bool intersects(const BitBoard& other) const { return bool(board_ & other.board_); }
 
   // Flips black and white side of a board.
   void Mirror() { board_ = MirrorBoard(board_); }
@@ -307,7 +197,7 @@ class BitBoard {
   }
 
   BitIterator<BoardSquare> begin() const { return board_; }
-  BitIterator<BoardSquare> end() const { return 0; }
+  BitIterator<BoardSquare> end() const { return __uint128_t(0); }
 
   std::string DebugString() const {
     std::string res;

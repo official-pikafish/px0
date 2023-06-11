@@ -35,7 +35,7 @@ struct InputsOutputs {
                 size_t tensor_mem_size = 0, size_t scratch_size = 0,
                 bool cublasDisableTensorCores = false) {
     ReportCUDAErrors(cudaHostAlloc(
-        &input_masks_mem_, maxBatchSize * kInputPlanes * sizeof(uint64_t),
+        &input_masks_mem_, maxBatchSize * kInputPlanes * sizeof(__uint128_t),
         cudaHostAllocMapped));
     ReportCUDAErrors(
         cudaHostGetDevicePointer(&input_masks_mem_gpu_, input_masks_mem_, 0));
@@ -106,14 +106,14 @@ struct InputsOutputs {
       cublasDestroy(cublas_);
     }
   }
-  uint64_t* input_masks_mem_;
+  __uint128_t* input_masks_mem_;
   float* input_val_mem_;
   float* op_policy_mem_;
   float* op_value_mem_;
   float* op_moves_left_mem_;
 
   // GPU pointers for the above allocations.
-  uint64_t* input_masks_mem_gpu_;
+  __uint128_t* input_masks_mem_gpu_;
   float* input_val_mem_gpu_;
   float* op_value_mem_gpu_;
   float* op_moves_left_mem_gpu_;

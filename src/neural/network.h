@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "proto/net.pb.h"
+#include "utils/bititer.h"
 #include "utils/exception.h"
 
 namespace lczero {

@@ -25,6 +25,7 @@
   Program grant you additional permission to convey the resulting work.
 */
 
+#include "utils/bititer.h"
 #include "utils/hashcat.h"
 #include <gtest/gtest.h>
 

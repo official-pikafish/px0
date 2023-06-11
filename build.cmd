@@ -3,7 +3,7 @@ setlocal
 
 rem 1. Set the following for the options you want to build.
 set CUDNN=false
-set CUDA=false
+set CUDA=true
 set DX12=false
 set OPENCL=false
 set MKL=false
@@ -13,7 +13,7 @@ set EIGEN=false
 set TEST=false
 
 rem 2. Edit the paths for the build dependencies.
-set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0
+set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1
 set CUDNN_PATH=%CUDA_PATH%
 set OPENBLAS_PATH=C:\OpenBLAS
 set MKL_PATH=C:\Program Files (x86)\IntelSWTools\compilers_and_libraries\windows\mkl
@@ -30,9 +30,9 @@ set CXX=cl
 set CC_LD=link
 set CXX_LD=link
 
-if exist "C:\Program Files\Microsoft Visual Studio\2022" (
+if exist "D:\IDE\Microsoft Visual Studio\2022" (
   where /q cl
-  if errorlevel 1 call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
+  if errorlevel 1 call "D:\IDE\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
   set backend=vs2022
 ) else if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019" (
   where /q cl

@@ -38,7 +38,7 @@ int ChooseTransform(const ChessBoard& board) {
   int transform = NoTransform;
   if ((our_king & 0x783C1E0F0783C1E0ULL) != 0) {
     transform |= FlipTransform;
-    our_king = FlipBoard(our_king);
+    our_king = uint64_t(FlipBoard(our_king));
   }
   // Our king is now always in left side of the palace.
   return transform;
