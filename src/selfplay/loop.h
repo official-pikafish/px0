@@ -57,4 +57,15 @@ class SelfPlayLoop : public UciLoop {
   std::unique_ptr<std::thread> thread_;
 };
 
+class ConvertLoop : public UciLoop {
+ public:
+  ConvertLoop();
+  ~ConvertLoop();
+
+  void RunLoop() override;
+
+ private:
+  OptionsParser options_;
+};
+
 }  // namespace lczero

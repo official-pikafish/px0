@@ -55,6 +55,8 @@ int main(int argc, const char** argv) {
     CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
     CommandLine::RegisterMode("selfplay", "Play games with itself");
     CommandLine::RegisterMode("benchmark", "Quick benchmark");
+    CommandLine::RegisterMode("leela2plain",
+                              "Convert training data to plain format.");
     CommandLine::RegisterMode("backendbench",
                               "Quick benchmark of backend only");
     CommandLine::RegisterMode("leela2onnx", "Convert Leela network to ONNX.");
@@ -63,7 +65,10 @@ int main(int argc, const char** argv) {
     CommandLine::RegisterMode("describenet",
                               "Shows details about the Leela network.");
 
-    if (CommandLine::ConsumeCommand("selfplay")) {
+    if (CommandLine::ConsumeCommand("leela2plain")) {
+      ConvertLoop loop;
+      loop.RunLoop();
+    } else if (CommandLine::ConsumeCommand("selfplay")) {
       // Selfplay mode.
       SelfPlayLoop loop;
       loop.RunLoop();
