@@ -308,6 +308,7 @@ int ResultForData(const V6TrainingData& data) {
 std::string AsNnueString(const Position& p, Move best, Move played, float q,
                          int result, const ProcessFileFlags &flags) {
   // Filter out in check and pv captures.
+  static constexpr int VALUE_NONE = 32002;
   bool filtered = p.GetWhiteBoard().IsUnderCheck() ||
                   p.GetWhiteBoard().theirs().get(best.to());
   std::ostringstream out;
@@ -316,7 +317,7 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
   out << "move " << (flags.nnue_best_move ? best.as_string() : played.as_string()) << std::endl;
   // Formula from PR1477 adjuster for SF PawnValueEg.
   out << "score "
-      << (filtered ? 32000 : round(660.6 * q / (1 - 0.9751875 * std::pow(q, 10))))
+      << (filtered ? VALUE_NONE : round(660.6 * q / (1 - 0.9751875 * std::pow(q, 10))))
       << std::endl;
   out << "ply " << p.GetGamePly() << std::endl;
   out << "result " << result << std::endl;

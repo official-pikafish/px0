@@ -52,7 +52,7 @@ class Search {
          std::unique_ptr<UciResponder> uci_responder,
          const MoveList& searchmoves,
          std::chrono::steady_clock::time_point start_time,
-         std::unique_ptr<SearchStopper> stopper, bool infinite,
+         std::unique_ptr<SearchStopper> stopper, bool infinite, bool ponder,
          const OptionsDict& options, NNCache* cache);
 
   ~Search();
@@ -193,7 +193,7 @@ class Search {
       GUARDED_BY(nodes_mutex_);
 
   std::unique_ptr<UciResponder> uci_responder_;
-
+  ContemptMode contempt_mode_;
   friend class SearchWorker;
 };
 
