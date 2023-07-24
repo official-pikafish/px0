@@ -156,23 +156,26 @@ GameResult PositionHistory::RuleJudge() const {
       rooksThem &= chaseThem & pos.GetBoard().PinnedRookByKnight();
 
     if (pos.GetBoard() == last.GetBoard() && pos.GetRepetitions() == 0) {
+      // Make sure the first move did an evasion
+      if (chaseUs)
+        chaseUs &= ~pos.GetBoard().Chased();
+      if (rooksUs)
+        rooksUs &= chaseUs;
       return (checkThem || checkUs) ? (!checkUs ? GameResult::BLACK_WON : !checkThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : (rooksThem || rooksUs) ? (!rooksUs ? GameResult::BLACK_WON : !rooksThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : (chaseThem || chaseUs) ? (!chaseUs ? GameResult::BLACK_WON : !chaseThem ? GameResult::WHITE_WON : GameResult::DRAW)
            : GameResult::DRAW;
     }
 
-    if (idx - 1 >= 0) {
-      if (positions_[idx - 1].GetBoard().IsUnderCheck()) {
-          chaseUs = rooksUs = 0;
-          checkUs &= true;
-      } else
-          checkUs = false;
-      if (chaseUs)
-          chaseUs &= positions_[idx - 1].GetThemBoard().Chased() & ~pos.GetBoard().Chased();
-      if (rooksUs)
-          rooksUs &= chaseUs & positions_[idx - 1].GetBoard().PinnedRookByKnight();
-    }
+    if (positions_[idx - 1].GetBoard().IsUnderCheck()) {
+        chaseUs = rooksUs = 0;
+        checkUs &= true;
+    } else
+        checkUs = false;
+    if (chaseUs)
+        chaseUs &= positions_[idx - 1].GetThemBoard().Chased() & ~pos.GetBoard().Chased();
+    if (rooksUs)
+        rooksUs &= chaseUs & positions_[idx - 1].GetBoard().PinnedRookByKnight();
   }
 
   throw Exception("Judging non-repetition move sequence");
