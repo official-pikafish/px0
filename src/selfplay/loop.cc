@@ -305,6 +305,27 @@ int ResultForData(const V6TrainingData& data) {
   return static_cast<int>(data.result_q);
 }
 
+float Px0toNNUE(float q, float offset=270, float outscaling=380) {
+  float e_powered = std::exp(-(offset / outscaling));
+  float e_2x_powered = std::exp((2 * offset) / outscaling);
+  float e_4x_powered = std::exp((4 * offset) / outscaling);
+
+  float numerator_part1 = -((1 + e_2x_powered) * q);
+  float numerator_part2 =
+      std::sqrt(4 * e_2x_powered + q * q - 2 * e_2x_powered * q * q +
+                e_4x_powered * q * q);
+  float numerator = e_powered * (numerator_part1 - numerator_part2);
+
+  float denominator = 2 * (-1 + q);
+
+  if (denominator == 0) {
+    // Handle division by zero or return some error value
+    return std::numeric_limits<float>::infinity();  // or throw an exception
+  }
+
+  return outscaling * std::log(numerator / denominator);
+}
+
 std::string AsNnueString(const Position& p, Move best, Move played, float q,
                          int result, const ProcessFileFlags &flags) {
   // Filter out in check and pv captures.
@@ -315,10 +336,8 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
   out << "fen " << GetFen(p) << std::endl;
   if (p.IsBlackToMove()) best.Mirror(), played.Mirror();
   out << "move " << (flags.nnue_best_move ? best.as_string() : played.as_string()) << std::endl;
-  // Formula from PR1477 adjuster for SF PawnValueEg.
-  out << "score "
-      << (filtered ? VALUE_NONE : round(660.6 * q / (1 - 0.9751875 * std::pow(q, 10))))
-      << std::endl;
+  // Formula from dblue
+  out << "score " << (filtered ? VALUE_NONE : round(std::clamp(Px0toNNUE(q), -20000.0f, 20000.0f))) << std::endl;
   out << "ply " << p.GetGamePly() << std::endl;
   out << "result " << result << std::endl;
   out << "e" << std::endl;
