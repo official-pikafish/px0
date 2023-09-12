@@ -1,15 +1,15 @@
 [![CircleCI](https://circleci.com/gh/LeelaChessZero/lc0.svg?style=shield)](https://circleci.com/gh/LeelaChessZero/lc0)
 [![AppVeyor](https://ci.appveyor.com/api/projects/status/3245b83otdee7oj7?svg=true)](https://ci.appveyor.com/project/leelachesszero/lc0)
 
-# Lc0
+# Px0
 
-Lc0 is a UCI-compliant chess engine designed to play chess via neural network, specifically those of the [LeelaChessZero project](https://lczero.org).
+Px0 is a UCI-compliant xiangqi engine designed to play xiangqi via neural network, specifically those of the [PikaXiangqiZero project](https://px0.org).
 
 ## Downloading source
 
-Lc0 can be acquired either via a git clone or an archive download from GitHub. Be aware that there is a required submodule which isn't included in source archives.
+Px0 can be acquired either via a git clone or an archive download from GitHub. Be aware that there is a required submodule which isn't included in source archives.
 
-For essentially all purposes, including selfplay game generation and match play, we highly recommend using the latest `release/version` branch (for example `release/0.29`), which is equivalent to using the latest version tag.
+For essentially all purposes, including selfplay game generation and match play, we highly recommend using the latest `master` branch.
 
 Versioning follows the Semantic Versioning guidelines, with major, minor and patch sections. The training server enforces game quality using the versions output by the client and engine.
 
@@ -17,14 +17,14 @@ Versioning follows the Semantic Versioning guidelines, with major, minor and pat
 Download using git:
 
 ```shell
-git clone -b release/0.29 --recurse-submodules https://github.com/LeelaChessZero/lc0.git
+git clone --recurse-submodules https://github.com/official-pikafish/px0.git
 ```
 
 If you have cloned already an old version, fetch, view and checkout a new branch:
 ```shell
 git fetch --all
 git branch --all
-git checkout -t remotes/origin/release/0.29
+git checkout -t master
 ```
 
 
@@ -35,18 +35,18 @@ If you prefer to download an archive, you need to also download and place the su
  * Move the second archive into the first archive's `libs/lczero-common/` folder and extract
  * The final form should look like `<TOP>/libs/lczero-common/proto/`
 
-Having successfully acquired Lc0 via either of these methods, proceed to the build section below and follow the instructions for your OS.
+Having successfully acquired Px0 via either of these methods, proceed to the build section below and follow the instructions for your OS.
 
 
-## Building and running Lc0
+## Building and running Px0
 
 Building should be easier now than it was in the past. Please report any problems you have.
 
-Aside from the git submodule, lc0 requires the Meson build system and at least one backend library for evaluating the neural network, as well as the required `zlib`. (`gtest` is optionally used for the test suite.) If your system already has this library installed, they will be used; otherwise Meson will generate its own copy of the two (a "subproject"), which in turn requires that git is installed (yes, separately from cloning the actual lc0 repository). Meson also requires python and Ninja.
+Aside from the git submodule, px0 requires the Meson build system and at least one backend library for evaluating the neural network, as well as the required `zlib`. (`gtest` is optionally used for the test suite.) If your system already has this library installed, they will be used; otherwise Meson will generate its own copy of the two (a "subproject"), which in turn requires that git is installed (yes, separately from cloning the actual px0 repository). Meson also requires python and Ninja.
 
 Backend support includes (in theory) any CBLAS-compatible library for CPU usage, such as OpenBLAS or Intel's DNNL or MKL. For GPUs, OpenCL and CUDA+cudnn are supported, while DX-12 can be used in Windows 10 with latest drivers.
 
-Finally, lc0 requires a compiler supporting C++17. Minimal versions seem to be g++ v8.0, clang v5.0 (with C++17 stdlib) or Visual Studio 2017.
+Finally, px0 requires a compiler supporting C++17. Minimal versions seem to be g++ v8.0, clang v5.0 (with C++17 stdlib) or Visual Studio 2017.
 
 *Note* that cuda checks the compiler version and stops even with newer compilers, and to work around this we have added the `nvcc_ccbin` build option. This is more of an issue with new Linux versions, but you can get around it by using an earlier version of gcc just for cuda. As an example, adding `-Dnvcc_ccbin=g++-9` to the `build.sh` command line will use g++-9 with cuda instead of the system compiler.
 
@@ -61,9 +61,9 @@ Given those basics, the OS and backend specific instructions are below.
     - If you want to use AMD graphics cards install OpenCL.
     - if you want OpenBLAS version Install OpenBLAS (`libopenblas-dev`).
 2. Install ninja build (`ninja-build`), meson, and (optionally) gtest (`libgtest-dev`).
-3. Go to `lc0/`
+3. Go to `px0/`
 4. Run `./build.sh`
-5. `lc0` will be in `lc0/build/release/` directory
+5. `px0` will be in `px0/build/release/` directory
 6. Unzip a [neural network](https://lczero.org/play/networks/bestnets/) in the same directory as the binary.
 
 If you want to build with a different compiler, pass the `CC` and `CXX` environment variables:
@@ -87,7 +87,7 @@ cuDNN exists of two packages, the Runtime Library and the Developer Library (bot
 Before you can download the latter you need to create a (free) "developer" account with nvidia for
 which at least a legit email address is required (their website says: The e-mail address is not made public
 and will only be used if you wish to receive a new password or wish to receive certain news or notifications
-by e-mail.). Further they ask for a name, date of birth (not visible later on), country, organisation ("LeelaZero"
+by e-mail.). Further they ask for a name, date of birth (not visible later on), country, organisation ("PikaZero"
 if you have none), primary industry segment ("Other"/none) and which development areas you are interested
 in ("Deep Learning").
 
@@ -203,8 +203,8 @@ sudo apt install clang-6.0 libstdc++-8-dev
 4. Clone lc0 and compile
 
 ```shell
-git clone https://github.com/LeelaChessZero/lc0.git
-cd lc0
+git clone https://github.com/official-pikafish/px0.git
+cd px0
 git submodule update --init --recursive
 CC=clang-6.0 CXX=clang++-6.0 ./build.sh -Ddefault_library=static
 ```
@@ -216,31 +216,31 @@ CC=clang-6.0 CXX=clang++-6.0 ./build.sh -Ddefault_library=static
 Python bindings can be built and installed as follows.
 
 ```shell
-pip install --user git+https://github.com/LeelaChessZero/lc0.git
+pip install --user git+https://github.com/official-pikafish/px0.git
 ```
 
 This will build the package `lczero-bindings` and install it to your Python user install directory.
-All the `lc0` functionality related to position evaluation is now available in the module `lczero.backends`.
+All the `px0` functionality related to position evaluation is now available in the module `lczero.backends`.
 An example interactive session can be found [here](https://github.com/LeelaChessZero/lc0/pull/1261#issuecomment-622951248).
 
 ## License
 
-Leela Chess is free software: you can redistribute it and/or modify
+Pika Xiangqi is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Leela Chess is distributed in the hope that it will be useful,
+Pika Xiangqi is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with Leela Chess.  If not, see <http://www.gnu.org/licenses/>.
+along with Pika Xiangqi.  If not, see <http://www.gnu.org/licenses/>.
 
 ### Additional permission under GNU GPL version 3 section 7
 
-_The source files of Lc0 with the exception of the BLAS and OpenCL
+_The source files of Px0 with the exception of the BLAS and OpenCL
 backends (all files in the `blas` and `opencl` sub-directories) have
 the following additional permission, as allowed under GNU GPL version 3
 section 7:_
@@ -252,3 +252,6 @@ modified version of those libraries), containing parts covered by the
 terms of the respective license agreement, the licensors of this
 Program grant you additional permission to convey the resulting work.
 
+## Acknowledgment of Exceptional Support
+
+We extend our deepest gratitude to Google's Tensor Research Cloud (TRC) program for their magnanimous provision of an abundance of TPU computational resources, which has been instrumental in the training and development of Px0. The TRC program exemplifies a paradigm of corporate philanthropy in the realm of artificial intelligence and machine learning. We earnestly encourage everyone to lend their unequivocal support to this laudable initiative. For more information, please visit [Google TRC Program](https://sites.research.google/trc/about/).
