@@ -492,29 +492,65 @@ std::string Converter::MakeAttentionBody(OnnxBuilder* builder,
         "/attn_body/reshape", flow,
         builder->AddInitializer("/const/att_body_shape",
                                 Int64OnnxConst({-1, 90, kInputPlanes}, {3})));
-//    std::string pad;
-//    if (options_.batch_size < 0) {
-//      pad = builder->Shape("/attn_body/shape", flow);
-//      pad = builder->Slice("/attn_body/batch", pad, {0}, {1});
-//      pad = builder->Concat(
-//          "/attn_body/pos_encoding_shape",
-//          {pad, builder->AddInitializer("/const/pos_encoding_shape",
-//                                        Int64OnnxConst({90, 90}, {2}))},
-//          0);
-//    } else {
-//      pad = builder->AddInitializer(
-//          "/const/pos_encoding_shape",
-//          Int64OnnxConst({options_.batch_size, 90, 90}, {3}));
-//    }
-//    pad = builder->Expand(
-//        "/attn_body/expand",
-//        builder->AddInitializer(
-//            "/const/pos_encoding",
-//            *GetWeghtsConverter(
-//                std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
-//                {1, 90, 90})),
-//        pad);
-//    flow = builder->Concat("/attn_body/padded_input", {flow, pad}, 2);
+    //std::string pad;
+    //if (options_.opset < 8) {
+    //  pad = builder->Slice("/attn_body/pad/slice", flow, {0, 0, 0},
+    //                       {INT_MAX, 1, 1});
+    //  pad = builder->Reshape(
+    //      "/attn_body/pad/reshape_in", pad,
+    //      builder->AddInitializer("/const/pad_in_shape",
+    //                              Int64OnnxConst({-1, 1}, {2})));
+    //  pad = builder->Sub("/attn_body/pad/zeros_vec", pad, pad);
+    //  std::unique_ptr<OnnxConst> one;
+    //  if (GetDataType() == pblczero::TensorProto::FLOAT16) {
+    //    one = std::make_unique<Float16OnnxConst>(
+    //        Float16OnnxConst({FP32toFP16(1.0f)}, {1}));
+    //  } else {
+    //    one = std::make_unique<FloatOnnxConst>(FloatOnnxConst({1.0f}, {1}));
+    //  }
+    //  pad = builder->Add("/attn_body/pad/one_vec", pad, *one);
+    //  pad = builder->MatMul(
+    //      "/attn_body/pad/expand", pad,
+    //      builder->AddInitializer(
+    //          "/const/pos_encoding",
+    //          *GetWeghtsConverter(std::vector<float>(kPosEncoding[0],
+    //                                                 kPosEncoding[0] + 90 * 90),
+    //                              {1, 90 * 90})));
+
+    //  pad = builder->Reshape(
+    //      "/attn_body/pad/reshape_out", pad,
+    //      builder->AddInitializer("/const/pad_out_shape",
+    //                              Int64OnnxConst({-1, 90, 90}, {3})));
+    //} else if (options_.batch_size < 0) {
+    //        pad = builder->Shape("/attn_body/shape", flow);
+    //  pad = builder->Slice("/attn_body/batch", pad, {0}, {1});
+    //  pad = builder->Concat(
+    //      "/attn_body/pos_encoding_shape",
+    //      {pad, builder->AddInitializer("/const/pos_encoding_shape",
+    //                                    Int64OnnxConst({90, 90}, {2}))},
+    //      0);
+    //  pad = builder->Expand(
+    //      "/attn_body/expand",
+    //      builder->AddInitializer(
+    //          "/const/pos_encoding",
+    //          *GetWeghtsConverter(std::vector<float>(kPosEncoding[0],
+    //                                                 kPosEncoding[0] + 90 * 90),
+    //                              {1, 90, 90})),
+    //      pad);
+    //} else {
+    //  pad = builder->AddInitializer(
+    //      "/const/pos_encoding_shape",
+    //      Int64OnnxConst({options_.batch_size, 90, 90}, {3}));
+    //  pad = builder->Expand(
+    //      "/attn_body/expand",
+    //      builder->AddInitializer(
+    //          "/const/pos_encoding",
+    //          *GetWeghtsConverter(std::vector<float>(kPosEncoding[0],
+    //                                                 kPosEncoding[0] + 90 * 90),
+    //                              {1, 90, 90})),
+    //      pad);
+    //}
+    //flow = builder->Concat("/attn_body/padded_input", {flow, pad}, 2);
     flow = builder->Reshape(
         "/attn_body/reshape2", flow,
         builder->AddInitializer("/const/att_body_shape2",
