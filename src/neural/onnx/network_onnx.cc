@@ -52,7 +52,7 @@
 namespace lczero {
 namespace {
 
-enum class OnnxProvider { CPU, CUDA, DML, ROCM, TRT };
+enum class OnnxProvider { CPU, CUDA, DML, ROCM };
 
 class OnnxNetwork;
 
@@ -275,7 +275,7 @@ void OnnxComputation<DataType>::ComputeBlocking() {
 }
 
 Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
-                               int batch_size, bool fp16) {
+                               int batch_size) {
   Ort::SessionOptions options;
   options.SetIntraOpNumThreads(threads);
   options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
@@ -299,14 +299,6 @@ Ort::SessionOptions GetOptions(OnnxProvider provider, int gpu, int threads,
       throw Exception("ONNX backend internal error.");
 #endif
       break;
-    case OnnxProvider::TRT: {
-      OrtTensorRTProviderOptions trt_options{};
-      trt_options.device_id = gpu;
-      trt_options.trt_fp16_enable = fp16;
-      trt_options.trt_max_workspace_size = 2147483648;
-      options.AppendExecutionProvider_TensorRT(trt_options);
-      break;
-    }
     case OnnxProvider::ROCM: {
       OrtROCMProviderOptions rocm_options;
       rocm_options.device_id = gpu;
@@ -353,7 +345,7 @@ OnnxNetwork::OnnxNetwork(const WeightsFile& file, const OptionsDict&,
     session_.emplace_back(
         onnx_env_, file.onnx_model().model().data(),
         file.onnx_model().model().size(),
-        GetOptions(provider, gpu, threads, batch_size_ * step, fp16));
+        GetOptions(provider, gpu, threads, batch_size_ * step));
 
   const auto& md = file.onnx_model();
   if (!md.has_input_planes()) {
@@ -394,8 +386,7 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
   int gpu = opts.GetOrDefault<int>("gpu", 0);
 
   int batch_size =
-      opts.GetOrDefault<int>("batch", kProvider == OnnxProvider::DML ? 16
-                                    : kProvider == OnnxProvider::TRT ? 256 : -1);
+      opts.GetOrDefault<int>("batch", kProvider == OnnxProvider::DML ? 16 : -1);
 
   int steps =
       opts.GetOrDefault<int>("steps", kProvider == OnnxProvider::DML ? 4 : 1);
@@ -468,17 +459,14 @@ std::unique_ptr<Network> MakeOnnxNetwork(const std::optional<WeightsFile>& w,
   }
 }
 
-#ifdef USE_TRT
-REGISTER_NETWORK("onnx-trt", MakeOnnxNetwork<OnnxProvider::TRT>, 65)
-#endif
 #ifdef USE_ROCM
 REGISTER_NETWORK("onnx-rocm", MakeOnnxNetwork<OnnxProvider::ROCM>, 64)
 #endif
 #ifdef USE_DML
 REGISTER_NETWORK("onnx-dml", MakeOnnxNetwork<OnnxProvider::DML>, 63)
 #endif
-REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 62)
-REGISTER_NETWORK("onnx-cpu", MakeOnnxNetwork<OnnxProvider::CPU>, 61)
+REGISTER_NETWORK("onnx-cuda", MakeOnnxNetwork<OnnxProvider::CUDA>, 61)
+REGISTER_NETWORK("onnx-cpu", MakeOnnxNetwork<OnnxProvider::CPU>, 62)
 
 }  // namespace
 }  // namespace lczero
