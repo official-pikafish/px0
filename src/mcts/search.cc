@@ -200,7 +200,8 @@ void ApplyDirichletNoise(Node* node, float eps, double alpha) {
 namespace {
 // WDL conversion formula based on random walk model.
 inline double WDLRescale(float& v, float& d, float wdl_rescale_ratio,
-                         float wdl_rescale_diff, float sign, bool invert) {
+                         float wdl_rescale_diff, float sign, bool invert,
+                         float max_reasonable_s) {
   if (invert) {
     wdl_rescale_diff = -wdl_rescale_diff;
     wdl_rescale_ratio = 1.0f / wdl_rescale_ratio;
@@ -216,8 +217,7 @@ inline double WDLRescale(float& v, float& d, float wdl_rescale_ratio,
     auto b = FastLog(1 / w - 1);
     auto s = 2 / (a + b);
     // Safeguard against unrealistically broad WDL distributions coming from
-    // the NN. Could be made into a parameter, but probably unnecessary.
-    const float max_reasonable_s = 1.4f;
+    // the NN. Originally hardcoded, made into a parameter for piece odds.
     if (!invert) s = std::min(max_reasonable_s, s);
     auto mu = (a - b) / (a + b);
     auto s_new = s * wdl_rescale_ratio;
@@ -291,7 +291,7 @@ void Search::SendUciInfo() REQUIRES(nodes_mutex_) REQUIRES(counters_mutex_) {
           contempt_mode_ == ContemptMode::NONE
               ? 0
               : params_.GetWDLRescaleDiff() * params_.GetWDLEvalObjectivity(),
-          sign, true);
+          sign, true, params_.GetWDLMaxS());
     }
     const auto q = edge.GetQ(default_q, draw_score);
     if (edge.IsTerminal() && wl != 0.0f) {
@@ -501,13 +501,10 @@ std::vector<std::string> Search::GetVerboseStats(Node* node) const {
         up = -up;
         std::swap(lo, up);
       }
-      *oss << (lo == up
-                   ? "(T) "
-                   : lo == GameResult::DRAW && up == GameResult::WHITE_WON
-                         ? "(W) "
-                         : lo == GameResult::BLACK_WON && up == GameResult::DRAW
-                               ? "(L) "
-                               : "");
+      *oss << (lo == up                                                ? "(T) "
+               : lo == GameResult::DRAW && up == GameResult::WHITE_WON ? "(W) "
+               : lo == GameResult::BLACK_WON && up == GameResult::DRAW ? "(L) "
+                                                                       : "");
     }
   };
 
@@ -1285,9 +1282,8 @@ void SearchWorker::GatherMinibatch() {
     // massive nps drop.
     if (thread_count > 1 && minibatch_size > 0 &&
         computation_->GetCacheMisses() > params_.GetIdlingMinimumWork() &&
-        thread_count -
-                search_->backend_waiting_counter_.load(
-                    std::memory_order_relaxed) >
+        thread_count - search_->backend_waiting_counter_.load(
+                           std::memory_order_relaxed) >
             params_.GetThreadIdlingThreshold()) {
       return;
     }
@@ -2151,7 +2147,7 @@ void SearchWorker::FetchSingleNodeResult(NodeToProcess* node_to_process,
                search_->contempt_mode_ == ContemptMode::NONE
                    ? 0
                    : params_.GetWDLRescaleDiff(),
-               sign, false);
+               sign, false, params_.GetWDLMaxS());
   }
   node_to_process->v = v;
   node_to_process->d = d;
