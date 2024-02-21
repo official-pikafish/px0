@@ -54,7 +54,7 @@ const char* ChessBoard::kStartposFen =
 const ChessBoard ChessBoard::kStartposBoard(ChessBoard::kStartposFen);
 
 void ChessBoard::Clear() {
-  std::memset(reinterpret_cast<void*>(this), 0, sizeof(ChessBoard));
+  *this = ChessBoard();
 }
 
 void ChessBoard::Mirror() {
