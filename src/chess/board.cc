@@ -1005,7 +1005,36 @@ void ChessBoard::SetFromFen(std::string fen, int* rule50_ply, int* moves) {
 }
 
 bool ChessBoard::HasMatingMaterial() const {
-  return (our_pieces_ | their_pieces_).count() != 2 + advisors_.count() + bishops_.count();
+  if (pawns_.count() == 0 && rooks_.count_few() == 0 && knights_.count_few() == 0) {
+    // No attacking pieces left
+    if (cannons_.count_few() == 0) {
+      return true;
+    }
+    
+    // Only one cannon left on the board
+    if (cannons_.count_few() == 1) {
+      // No advisors left on the board
+      if (advisors_.count_few() == 0) {
+        return true;
+      }
+
+      // The side not holding the cannon can possess one advisor
+      // The side holding the cannon should only have cannon
+      if ((our_pieces_.count() == 2 &&
+           (our_pieces_ & cannons_).count_few() == 1 &&
+           (their_pieces_ & advisors_).count_few() == 1) ||
+          (their_pieces_.count() == 2 &&
+           (their_pieces_ & cannons_).count_few() == 1 &&
+           (our_pieces_ & advisors_).count_few() == 1)) {
+        return true;
+      }
+    }
+
+    // Two cannons left on the board, one for each side, but no other pieces left on the board
+    if ((our_pieces_ | their_pieces_).count() == 4 && (our_pieces_ & cannons_).count_few() == 1 && (their_pieces_ & cannons_).count_few() == 1) {
+      return true;
+    }
+  }
 }
 
 std::string ChessBoard::DebugString() const {
