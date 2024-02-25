@@ -1006,35 +1006,73 @@ void ChessBoard::SetFromFen(std::string fen, int* rule50_ply, int* moves) {
 
 bool ChessBoard::HasMatingMaterial() const {
   if (pawns_.count() == 0 && rooks_.count_few() == 0 && knights_.count_few() == 0) {
-    // No attacking pieces left
-    if (cannons_.count_few() == 0) {
-      return true;
-    }
-    
-    // Only one cannon left on the board
-    if (cannons_.count_few() == 1) {
-      // No advisors left on the board
-      if (advisors_.count_few() == 0) {
-        return true;
+
+    enum DrawLevel : int {
+      NO_DRAW,      // There is no drawing situation exists
+      DIRECT_DRAW,  // A draw can be directly yielded without any checks
+      MATE_DRAW     // We need to check for mate before yielding a draw
+    };
+
+    DrawLevel level = [&] {
+      // No cannons left on the board
+      if (cannons_.count_few() == 0) {
+        return DIRECT_DRAW;
       }
 
-      // The side not holding the cannon can possess one advisor
-      // The side holding the cannon should only have cannon
-      if ((our_pieces_.count() == 2 &&
-           (our_pieces_ & cannons_).count_few() == 1 &&
-           (their_pieces_ & advisors_).count_few() == 1) ||
-          (their_pieces_.count() == 2 &&
-           (their_pieces_ & cannons_).count_few() == 1 &&
-           (our_pieces_ & advisors_).count_few() == 1)) {
-        return true;
-      }
-    }
+      // One cannon left on the board
+      if (cannons_.count_few() == 1) {
+        // See which side is holding this cannon, and this side must not possess
+        // any advisors
+        BitBoard cannon_side_occ = our_pieces_;
+        BitBoard non_cannon_side_occ = their_pieces_;
+        if ((cannon_side_occ & cannons_).count_few() == 0) {
+          std::swap(cannon_side_occ, non_cannon_side_occ);
+        }
+        if ((advisors_ & cannon_side_occ).count_few() == 0) {
+          // No advisors left on the board
+          if ((advisors_ & non_cannon_side_occ).count_few() == 0) {
+            return DIRECT_DRAW;
+          }
 
-    // Two cannons left on the board, one for each side, but no other pieces left on the board
-    if ((our_pieces_ | their_pieces_).count() == 4 && (our_pieces_ & cannons_).count_few() == 1 && (their_pieces_ & cannons_).count_few() == 1) {
-      return true;
+          // One advisor left on the board
+          if ((advisors_ & non_cannon_side_occ).count_few() == 1) {
+            return (bishops_ & cannon_side_occ).count_few() == 0 ? DIRECT_DRAW
+                                                                 : MATE_DRAW;
+          }
+
+          // Two advisors left on the board
+          if ((bishops_ & cannon_side_occ).count_few() == 0) {
+            return MATE_DRAW;
+          }
+        }
+      }
+
+      // Two cannons left on the board, one for each side, and no advisors left
+      // on the board
+      if ((cannons_ & our_pieces_).count_few() == 1 &&
+          (cannons_ & their_pieces_).count_few() == 1 &&
+          advisors_.count_few() == 0) {
+        return bishops_.count_few() == 0 ? DIRECT_DRAW : MATE_DRAW;
+      }
+
+      return NO_DRAW;
+    }();
+
+    if (level != NO_DRAW) {
+      if (level == MATE_DRAW) {
+        for (const auto& move : GenerateLegalMoves()) {
+          ChessBoard after(*this);
+          after.ApplyMove(move);
+          after.Mirror();
+          if (after.GenerateLegalMoves().size() == 0)
+            return true;
+        }
+      }
+      return false;
     }
   }
+
+  return true;
 }
 
 std::string ChessBoard::DebugString() const {
