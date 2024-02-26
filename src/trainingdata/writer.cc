@@ -33,7 +33,6 @@
 #include "utils/random.h"
 
 namespace lczero {
-
 namespace {
 std::string GetLc0CacheDirectory() {
   std::string user_cache_path = GetUserCacheDirectory();
