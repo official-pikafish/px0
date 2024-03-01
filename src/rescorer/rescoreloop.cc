@@ -111,7 +111,7 @@ void DataAssert(bool check_result) {
 void Validate(const std::vector<V6TrainingData>& fileContents) {
   if (fileContents.empty()) throw Exception("Empty File");
 
-  for (int i = 0; i < fileContents.size(); i++) {
+  for (size_t i = 0; i < fileContents.size(); i++) {
     auto& data = fileContents[i];
     DataAssert(
         data.input_format ==
@@ -141,15 +141,15 @@ void Validate(const std::vector<V6TrainingData>& fileContents) {
       // At most one en-passant bit.
       DataAssert((data.side_to_move & (data.side_to_move - 1)) == 0);
     } else {
-      DataAssert(data.side_to_move >= 0 && data.side_to_move <= 1);
+      DataAssert(data.side_to_move_or_enpassant <= 1);
     }
     DataAssert(data.result_q >= -1 && data.result_q <= 1);
     DataAssert(data.result_d >= 0 && data.result_q <= 1);
-    DataAssert(data.rule50_count >= 0 && data.rule50_count <= 120);
+    DataAssert(data.rule50_count <= 120);
     float sum = 0.0f;
-    for (int j = 0; j < sizeof(data.probabilities) / sizeof(float); j++) {
+    for (size_t j = 0; j < sizeof(data.probabilities) / sizeof(float); j++) {
       float prob = data.probabilities[j];
-      DataAssert(prob >= 0.0f && prob <= 1.0f || prob == -1.0f ||
+      DataAssert((prob >= 0.0f && prob <= 1.0f) || prob == -1.0f ||
                  std::isnan(prob));
       if (prob >= 0.0f) {
         sum += prob;
@@ -171,9 +171,9 @@ void Validate(const std::vector<V6TrainingData>& fileContents) {
     DataAssert(data.played_d >= 0.0f && data.played_d <= 1.0f);
     DataAssert(data.played_m >= 0.0f);
     DataAssert(std::isnan(data.orig_q) ||
-               data.orig_q >= -1.0f && data.orig_q <= 1.0f);
+               (data.orig_q >= -1.0f && data.orig_q <= 1.0f));
     DataAssert(std::isnan(data.orig_d) ||
-               data.orig_d >= 0.0f && data.orig_d <= 1.0f);
+               (data.orig_d >= 0.0f && data.orig_d <= 1.0f));
     DataAssert(std::isnan(data.orig_m) || data.orig_m >= 0.0f);
     // TODO: if visits > 0 - assert best_idx/played_idx are valid in
     // probabilities.
@@ -191,7 +191,7 @@ void Validate(const std::vector<V6TrainingData>& fileContents,
   PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]), &board,
                 &rule50ply, &gameply);
   history.Reset(board, rule50ply, gameply);
-  for (int i = 0; i < moves.size(); i++) {
+  for (size_t i = 0; i < moves.size(); i++) {
     int transform = TransformForPosition(input_format, history);
     // If real v6 data, can confirm that played_idx matches the inferred move.
     if (fileContents[i].visits > 0) {
@@ -345,7 +345,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
       }
       Validate(fileContents);
       MoveList moves;
-      for (int i = 1; i < fileContents.size(); i++) {
+      for (size_t i = 1; i < fileContents.size(); i++) {
         moves.push_back(
             DecodeMoveFromInput(PlanesFromTrainingData(fileContents[i]),
                                 PlanesFromTrainingData(fileContents[i - 1])));
@@ -369,7 +369,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
       uint64_t rootHash = HashCat(board.Hash(), rule50ply);
       if (policy_subs.find(rootHash) != policy_subs.end()) {
         PolicySubNode* rootNode = &policy_subs[rootHash];
-        for (int i = 0; i < fileContents.size(); i++) {
+        for (size_t i = 0; i < fileContents.size(); i++) {
           if (rootNode->active) {
             /* Some logic for choosing a softmax to apply to better align the
             new policy with the old policy...
@@ -413,7 +413,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
               fileContents[i].probabilities[j] = rootNode->policy[j];
             }
           }
-          if (i < fileContents.size() - 1) {
+          if (i + 1 < fileContents.size()) {
             int transform = TransformForPosition(input_format, history);
             int idx = moves[i].as_nn_index(transform);
             if (rootNode->children[idx] == nullptr) {
@@ -431,7 +431,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
       int last_rescore = -1;
       orig_counts[ResultForData(fileContents[0]) + 1]++;
       fixed_counts[ResultForData(fileContents[0]) + 1]++;
-      for (int i = 0; i < moves.size(); i++) {
+      for (int i = 0; i < static_cast<int>(moves.size()); i++) {
         history.Append(moves[i]);
       }
 
@@ -487,7 +487,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
         PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
                       &board, &rule50ply, &gameply);
         history.Reset(board, rule50ply, gameply);
-        for (int i = 0; i < moves.size(); i++) {
+        for (size_t i = 0; i < moves.size(); i++) {
           history.Append(moves[i]);
         }
         float activeZ[3] = {fileContents.back().result_q,
@@ -552,7 +552,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
                       &board, &rule50ply, &gameply);
         history.Reset(board, rule50ply, gameply);
         ChangeInputFormat(newInputFormat, &fileContents[0], history);
-        for (int i = 0; i < moves.size(); i++) {
+        for (size_t i = 0; i < moves.size(); i++) {
           history.Append(moves[i]);
           ChangeInputFormat(newInputFormat, &fileContents[i + 1], history);
         }
@@ -583,7 +583,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
         PopulateBoard(format, PlanesFromTrainingData(fileContents[0]), &board,
                       &rule50ply, &gameply);
         history.Reset(board, rule50ply, gameply);
-        for (int i = 0; i < fileContents.size(); i++) {
+        for (size_t i = 0; i < fileContents.size(); i++) {
           auto chunk = fileContents[i];
           Position p = history.Last();
           if (chunk.visits > 0) {
@@ -629,7 +629,7 @@ void ProcessFiles(const std::vector<std::string>& files, std::string outputDir,
                   int offset, int mod, std::string nnue_plain_file,
                   ProcessFileFlags flags) {
   std::cerr << "Thread: " << offset << " starting" << std::endl;
-  for (int i = offset; i < files.size(); i += mod) {
+  for (size_t i = offset; i < files.size(); i += mod) {
     if (files[i].rfind(".gz") != files[i].size() - 3) {
       std::cerr << "Skipping: " << files[i] << std::endl;
       continue;
@@ -649,7 +649,7 @@ void BuildSubs(const std::vector<std::string>& files) {
     }
     Validate(fileContents);
     MoveList moves;
-    for (int i = 1; i < fileContents.size(); i++) {
+    for (size_t i = 1; i < fileContents.size(); i++) {
       moves.push_back(
           DecodeMoveFromInput(PlanesFromTrainingData(fileContents[i]),
                               PlanesFromTrainingData(fileContents[i - 1])));
@@ -672,7 +672,7 @@ void BuildSubs(const std::vector<std::string>& files) {
     history.Reset(board, rule50ply, gameply);
     uint64_t rootHash = HashCat(board.Hash(), rule50ply);
     PolicySubNode* rootNode = &policy_subs[rootHash];
-    for (int i = 0; i < fileContents.size(); i++) {
+    for (size_t i = 0; i < fileContents.size(); i++) {
       if ((fileContents[i].invariance_info & 64) == 0) {
         rootNode->active = true;
         for (int j = 0; j < 2062; j++) {
@@ -748,7 +748,7 @@ void RescoreLoop::RunLoop() {
       options_.GetOptionsDict().Get<std::string>(kPolicySubsDirId);
   if (policySubsDir.size() != 0) {
     auto policySubFiles = GetFileList(policySubsDir);
-    for (int i = 0; i < policySubFiles.size(); i++) {
+    for (size_t i = 0; i < policySubFiles.size(); i++) {
       policySubFiles[i] = policySubsDir + "/" + policySubFiles[i];
     }
     BuildSubs(policySubFiles);
@@ -764,10 +764,10 @@ void RescoreLoop::RunLoop() {
     std::cerr << "No files to process" << std::endl;
     return;
   }
-  for (int i = 0; i < files.size(); i++) {
+  for (size_t i = 0; i < files.size(); i++) {
     files[i] = inputDir + "/" + files[i];
   }
-  int threads = options_.GetOptionsDict().Get<int>(kThreadsId);
+  unsigned int threads = options_.GetOptionsDict().Get<int>(kThreadsId);
   ProcessFileFlags flags;
   flags.delete_files = options_.GetOptionsDict().Get<bool>(kDeleteFilesId);
   flags.nnue_best_score = options_.GetOptionsDict().Get<bool>(kNnueBestScoreId);
@@ -789,7 +789,7 @@ void RescoreLoop::RunLoop() {
             flags);
       });
     }
-    for (int i = 0; i < threads_.size(); i++) {
+    for (size_t i = 0; i < threads_.size(); i++) {
       threads_[i].join();
     }
 
