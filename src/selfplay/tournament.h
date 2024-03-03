@@ -32,6 +32,7 @@
 #include "chess/pgn.h"
 #include "neural/factory.h"
 #include "selfplay/game.h"
+#include "selfplay/multigame.h"
 #include "utils/mutex.h"
 #include "utils/optionsdict.h"
 #include "utils/optionsparser.h"
@@ -71,6 +72,8 @@ class SelfPlayTournament {
  private:
   void Worker();
   void PlayOneGame(int game_id);
+  void PlayMultiGames(int game_id, size_t game_count);
+  void SaveResults();
 
   Mutex mutex_;
   // Whether first game will be black for player1.
@@ -84,6 +87,7 @@ class SelfPlayTournament {
   // Abort(). Stored as list and not vector so that threads can keep iterators
   // to them and not worry that it becomes invalid.
   std::list<std::unique_ptr<SelfPlayGame>> games_ GUARDED_BY(mutex_);
+  std::list<std::unique_ptr<MultiSelfPlayGames>> multigames_ GUARDED_BY(mutex_);
   // Place to store tournament stats.
   TournamentInfo tournament_info_ GUARDED_BY(mutex_);
 
@@ -107,8 +111,9 @@ class SelfPlayTournament {
   const size_t kParallelism;
   const bool kTraining;
   const float kResignPlaythrough;
+  const int kPolicyGamesSize;
+  const std::string kTournamentResultsFile;
   const float kDiscardedStartChance;
-
 };
 
 }  // namespace lczero
