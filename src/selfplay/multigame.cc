@@ -127,7 +127,7 @@ MultiSelfPlayGames::MultiSelfPlayGames(PlayerOptions player1,
                                        PlayerOptions player2,
                                        const std::vector<Opening>& openings,
                                        bool use_value)
-    : options_{player1, player2}, syzygy_tb_(syzygy_tb) {
+    : options_{player1, player2} {
   eval_ = use_value
               ? std::unique_ptr<Evaluator>(std::make_unique<ValueEvaluator>())
               : std::unique_ptr<Evaluator>(std::make_unique<PolicyEvaluator>());

@@ -44,7 +44,7 @@ class Lc0InputTensor : public XlaTensor {
         // TODO replace with make_unique_for_overwrite() once C++20 is
         // available.
         data_(new char[GetTensorByteSizeForBatch(max_batch_size)]),
-        shape_{0, kInputPlanes, 8, 8} {}
+        shape_{0, kInputPlanes, 10, 9} {}
 
   const std::vector<int64_t>& shape() const override { return shape_; }
   const void* data() const override { return data_.get(); }
@@ -68,7 +68,7 @@ class Lc0InputTensor : public XlaTensor {
 
  private:
   static size_t GetTensorByteSizeForBatch(size_t batch_size) {
-    return kInputPlanes * 8 * 8 * batch_size * sizeof(float);
+    return kInputPlanes * 10 * 9 * batch_size * sizeof(float);
   }
 
   const size_t max_batch_size_;
@@ -134,10 +134,10 @@ XlaComputation::XlaComputation(const XlaNetwork* network)
 
 void XlaComputation::AddInput(InputPlanes&& input) {
   float* ptr = input_tensor_.AddBatch();
-  memset(ptr, 0, 8 * 8 * kInputPlanes * sizeof(float));
+  memset(ptr, 0, 10 * 9 * kInputPlanes * sizeof(float));
   for (const auto& plane : input) {
     for (auto bit : IterateBits(plane.mask)) ptr[bit] = plane.value;
-    ptr += 8 * 8;
+    ptr += 10 * 9;
   }
 }
 
