@@ -2154,17 +2154,17 @@ void AttentionBody<DataType>::Eval(int N, DataType* output,
       processing
     */
     if (is_pe_dense_embedding_) {
-      // New encoding is made of dense layer fed with input from a 12-channel
+      // New encoding is made of dense layer fed with input from a 14-channel
       // slice of the input tensor.
-      // pos_info = flow[..., :12]
-      // pos_info_flat = tf.reshape(pos_info, [-1, 90 * 12])
+      // pos_info = flow[..., :14]
+      // pos_info_flat = tf.reshape(pos_info, [-1, 90 * 14])
       // pos_info_processed = tf.keras.layers.Dense(90*self.embedding_dense_sz,
       //                                            name=name+"embedding/preprocess")(pos_info_flat)
       const int num_outputs = 90 * embedding_dense_size_;
-      const int num_inputs = 90 * 12;
+      const int num_inputs = 90 * 14;
       const int batch = N;
 
-      convertNCHWtoNHWC((DataType*)scratch, input, N, inputC, N, 12, 10, 9);
+      convertNCHWtoNHWC((DataType*)scratch, input, N, inputC, N, 14, 10, 9);
       cublasXgemm<DataType>(
           cublas, CUBLAS_OP_T, CUBLAS_OP_N, num_outputs, batch, num_inputs,
           1.0f, (const DataType*)ip_emb_pre_w_, num_inputs,
@@ -2191,9 +2191,9 @@ void AttentionBody<DataType>::Eval(int N, DataType* output,
       axis=2)
       */
       inputPreprocessForAttentionBody((DataType*)scratch, input, pos_encoding_,
-                                      N, kInputPlanes, kNumPosEncodingChannels,
+                                      N, kInputPlanes, 0, // kNumPosEncodingChannels,
                                       false, stream);
-      inputC += kNumPosEncodingChannels;
+      inputC += 0; // kNumPosEncodingChannels;
     }
   } else {
     // #redirect flow through encoder blocks
@@ -2251,7 +2251,7 @@ void AttentionBody<DataType>::Eval(int N, DataType* output,
       // Embedding LN: skip connection and layer normilization (also bias add of
       // prev gemm) buffer2 -> embedding
       float alpha = (float)pow(2. * encoder_weights_.size(), -0.25);
-      LayerNorm<DataType>(N * 64, embedding_ffn_size_, embedding, buffer2,
+      LayerNorm<DataType>(N * 90, embedding_ffn_size_, embedding, buffer2,
                           ip_emb_ffn_d2_b_, temp, ip_emb_ffn_ln_g_,
                           ip_emb_ffn_ln_b_, 1e-3, alpha, ACTIVATION_NONE,
                           stream);
@@ -2293,7 +2293,7 @@ ValueHead<DataType>::ValueHead(BaseLayer<DataType>* ip,
                                void* scratch, bool attention_body, bool wdl,
                                ActivationFunction act, int /*max_batch_size*/,
                                bool use_gemm_ex)
-    : BaseLayer<DataType>(weights.ip_val_b.size(), 8, 8, ip),
+    : BaseLayer<DataType>(weights.ip_val_b.size(), 10, 9, ip),
       embedding_size_(attention_body ? weights.ip_val_b.size()
                                      : weights.value.biases.size()),
       value_hidden_size_(weights.ip1_val_b.size()),
@@ -2305,7 +2305,7 @@ ValueHead<DataType>::ValueHead(BaseLayer<DataType>* ip,
     allocAndUpload<DataType>(&ip_val_b_, weights.ip_val_b, scratch);
   } else {
     conv_ = std::make_unique<Conv1Layer<DataType>>(
-        ip, weights.value.biases.size(), 8, 8, ip->GetC(), act, true,
+        ip, weights.value.biases.size(), 10, 9, ip->GetC(), act, true,
         use_gemm_ex);
     conv_->LoadWeights((float*)&weights.value.weights[0],
                        (float*)&weights.value.biases[0], scratch);
@@ -2340,7 +2340,7 @@ void ValueHead<DataType>::Eval(int N, DataType* output, const DataType* input,
   {
     const int num_inputs = this->input_->GetC();
     const int num_outputs = embedding_size_;
-    const int batch = N * 64;
+    const int batch = N * 90;
     if (attention_body_) {
       cublasXgemm<DataType>(cublas, CUBLAS_OP_T, CUBLAS_OP_N, num_outputs,
                             batch, num_inputs, 1.0f, (const DataType*)ip_val_w_,
@@ -2357,7 +2357,7 @@ void ValueHead<DataType>::Eval(int N, DataType* output, const DataType* input,
 
   {
     // Value dense 1
-    const int num_inputs = embedding_size_ * 64;
+    const int num_inputs = embedding_size_ * 90;
     const int num_outputs = value_hidden_size_;
     const int batch = N;
     DataType* layer_out = (DataType*)scratch;

@@ -669,16 +669,16 @@ std::string Converter::AttentionBodyDenseEmbedding(
       builder->AddInitializer("/const/att_body_shape",
                               Int64OnnxConst({-1, 90, kInputPlanes}, {3})));
   auto pos_info = builder->Slice("/attn_body/embedding/slice", flow, {0, 0, 0},
-                                 {INT_MAX, 90, 12});
+                                 {INT_MAX, 90, 14});
   pos_info = builder->Reshape(
       "/attn_body/embedding/reshape", pos_info,
       builder->AddInitializer("/const/pos_info_shape",
-                              Int64OnnxConst({-1, 90 * 12}, {2})));
+                              Int64OnnxConst({-1, 90 * 14}, {2})));
 
   pos_info = builder->MatMul(
       "/attn_body/embedding/preprocess/matmul", pos_info,
       *GetWeghtsConverter(weights.ip_emb_preproc_w,
-                          {90 * 12, 90 * embedding_dense_size}, {1, 0}));
+                          {90 * 14, 90 * embedding_dense_size}, {1, 0}));
   pos_info = builder->Add("/attn_body/embedding/preprocess/add", pos_info,
                           *GetWeghtsConverter(weights.ip_emb_preproc_b,
                                               {90 * embedding_dense_size}));
