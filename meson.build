@@ -647,6 +647,8 @@ if get_option('build_backends')
         'src/neural/xla/xla_tensor.cc',
       ]
       deps += cc.find_library('dl', required: false)
+      has_backends = true
+      add_project_arguments('-fpermissive', language : 'cpp')
   endif
 
 endif # if get_option('build_backends')
