@@ -719,7 +719,6 @@ endif
 #############################################################################
 
 if get_option('rescorer')
-  deps += subproject('gaviotatb').get_variable('gaviotatb_dep')
   executable('rescorer', 'src/rescorer_main.cc',
        [common_files, 'src/rescorer/rescoreloop.cc'],
        include_directories: includes, dependencies: deps, install: true)

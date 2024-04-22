@@ -141,7 +141,7 @@ void Validate(const std::vector<V6TrainingData>& fileContents) {
       // At most one en-passant bit.
       DataAssert((data.side_to_move & (data.side_to_move - 1)) == 0);
     } else {
-      DataAssert(data.side_to_move_or_enpassant <= 1);
+      DataAssert(data.side_to_move <= 1);
     }
     DataAssert(data.result_q >= -1 && data.result_q <= 1);
     DataAssert(data.result_d >= 0 && data.result_q <= 1);
@@ -287,7 +287,7 @@ int ResultForData(const V6TrainingData& data) {
   return static_cast<int>(data.result_q);
 }
 
-float Px0toNNUE(float q, float offset = 270, float outscaling = 380) {
+float Px0toNNUE(float q, float offset = 0, float outscaling = 361) {
   float e_powered = std::exp(-(offset / outscaling));
   float e_2x_powered = std::exp((2 * offset) / outscaling);
   float e_4x_powered = std::exp((4 * offset) / outscaling);
@@ -312,8 +312,8 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
                          int result, const ProcessFileFlags& flags) {
   // Filter out in check and pv captures.
   static constexpr int VALUE_NONE = 32002;
-  bool filtered = p.GetWhiteBoard().IsUnderCheck() ||
-                  p.GetWhiteBoard().theirs().get(best.to());
+  bool filtered = p.GetBoard().IsUnderCheck() ||
+                  p.GetBoard().theirs().get(best.to());
   std::ostringstream out;
   out << "fen " << GetFen(p) << std::endl;
   if (p.IsBlackToMove()) best.Mirror(), played.Mirror();
@@ -428,7 +428,6 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
       PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
                     &board, &rule50ply, &gameply);
       history.Reset(board, rule50ply, gameply);
-      int last_rescore = -1;
       orig_counts[ResultForData(fileContents[0]) + 1]++;
       fixed_counts[ResultForData(fileContents[0]) + 1]++;
       for (int i = 0; i < static_cast<int>(moves.size()); i++) {
@@ -441,12 +440,10 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
         history.Reset(board, rule50ply, gameply);
         int move_index = 0;
         for (auto& chunk : fileContents) {
-          const auto& board = history.Last().GetBoard();
           std::vector<bool> boost_probs(2062, false);
 
           float sum = 0.0;
           int prob_index = 0;
-          float preboost_sum = 0.0f;
           for (auto& prob : chunk.probabilities) {
             float offset = distOffset;
             prob_index++;
@@ -456,7 +453,6 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
             sum += prob;
           }
           prob_index = 0;
-          float boost_sum = 0.0f;
           for (auto& prob : chunk.probabilities) {
             prob_index++;
             if (prob < 0 || std::isnan(prob)) continue;
@@ -727,8 +723,6 @@ void RescoreLoop::RunLoop() {
   options_.Add<BoolOption>(kNnueBestScoreId) = true;
   options_.Add<BoolOption>(kNnueBestMoveId) = false;
   options_.Add<BoolOption>(kDeleteFilesId) = true;
-
-  SelfPlayTournament::PopulateOptions(&options_);
 
   if (!options_.ProcessAllFlags()) return;
 
