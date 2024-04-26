@@ -91,8 +91,6 @@ class ChessBoard {
   int MakeChase(BoardSquare to) const;
   // Returns chasing information for "ours" (white)
   uint16_t Chased() const;
-  // Pinned Rook By Knight
-  uint16_t PinnedRookByKnight() const;
 
   uint64_t Hash() const {
     return HashCat({our_pieces_.as_int(), their_pieces_.as_int(),

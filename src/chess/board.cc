@@ -839,6 +839,8 @@ uint16_t ChessBoard::Chased() const {
       BitBoard candidates = BitBoard(0);
       if (attackerType == KNIGHT || attackerType == CANNON)
         candidates = attacks & rooks_;
+      if (attackerType == ADVISOR || attackerType == BISHOP)
+        candidates = attacks & (rooks_ | knights_ | cannons_);
       attacks -= candidates;
       for (const auto & to : candidates) {
         if (IsLegalMove(Move(from, to)))
@@ -885,19 +887,6 @@ uint16_t ChessBoard::Chased() const {
   addChase(BISHOP, bishops_);
 
   return chase;
-}
-
-uint16_t ChessBoard::PinnedRookByKnight() const {
-  uint16_t rooks = 0;
-
-  // Get all knights attacking the king ignoring blockers
-  for (BoardSquare square : their_pieces_ & knights_ & PseudoAttacks[ChessBoard::KNIGHT][our_king_.as_int()]) {
-    BoardSquare square2 = BetweenSQ[our_king_.as_int()][square.as_int()];
-    if ((our_pieces_ & rooks_).intersects(square2.as_board()))
-      rooks |= (1 << id_board_[square2.as_int()]);
-  }
-
-  return rooks;
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {
