@@ -488,11 +488,11 @@ if get_option('build_backends')
     if cuda_cc != ''
       nvcc_extra_args += ['-arch=compute_' + cuda_cc, '-code=sm_' + cuda_cc]
     elif get_option('native_cuda') and nvcc_help.contains('-arch=native')
-      nvcc_extra_args = ['-arch=native']
+      nvcc_extra_args += ['-arch=native']
     elif nvcc_help.contains('-arch=all-major')
-      nvcc_extra_args = ['-arch=all-major', '-Wno-deprecated-gpu-targets']
+      nvcc_extra_args += ['-arch=all-major', '-Wno-deprecated-gpu-targets']
     else
-      nvcc_extra_args = ['-Wno-deprecated-gpu-targets']
+      nvcc_extra_args += ['-Wno-deprecated-gpu-targets']
       # Fallback for cuda versions without -arch=all-major.
       foreach x : ['35', '50', '60', '70', '80']
         if nvcc_help.contains('sm_' + x)

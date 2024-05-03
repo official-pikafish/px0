@@ -125,12 +125,12 @@ option('metal',
 
 option('malloc',
        type : 'string',
-       value: 'mimalloc',
+       value: '',
        description: 'Use alternative memory allocator, e.g. tcmalloc/jemalloc')
 
 option('mimalloc_libdir',
        type : 'string',
-       value: 'D:/IDE/Microsoft Visual Studio/Projects/lc0/subprojects/mimalloc',
+       value: '',
        description: 'Library directory for malloc=mimalloc')
 
 option('popcnt',
@@ -180,12 +180,12 @@ option('cc_cuda',
 
 option('onnx_libdir',
        type: 'string',
-       value: 'D:/IDE/Microsoft Visual Studio/Projects/lc0/subprojects/onnx/lib',
+       value: '',
        description: 'Paths to ONNX runtime libraries')
 
 option('onnx_include',
        type: 'string',
-       value: 'D:/IDE/Microsoft Visual Studio/Projects/lc0/subprojects/onnx/include',
+       value: '',
        description: 'Paths to ONNX runtime includes')
 
 option('xla',

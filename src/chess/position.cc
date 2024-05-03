@@ -139,9 +139,9 @@ GameResult PositionHistory::RuleJudge() const {
   bool checkThem = last.GetBoard().IsUnderCheck();
   bool checkUs = positions_[size(positions_) - 2].GetBoard().IsUnderCheck();
   uint16_t chaseThem = last.GetThemBoard().Chased() &
-                       positions_[size(positions_) - 2].GetBoard().Chased();
+                       ~positions_[size(positions_) - 2].GetBoard().Chased();
   uint16_t chaseUs = positions_[size(positions_) - 2].GetThemBoard().Chased() &
-                     positions_[size(positions_) - 3].GetBoard().Chased();
+                     ~positions_[size(positions_) - 3].GetBoard().Chased();
 
   for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
     const auto& pos = positions_[idx];
@@ -165,11 +165,11 @@ GameResult PositionHistory::RuleJudge() const {
         chaseThem = chaseUs = 0;
       else
         checkUs = false;
-      chaseThem &=
-          pos.GetThemBoard().Chased() & positions_[idx - 1].GetBoard().Chased();
+      chaseThem &= pos.GetThemBoard().Chased() &
+                   ~positions_[idx - 1].GetBoard().Chased();
       if (idx - 2 >= 0)
         chaseUs &= positions_[idx - 1].GetThemBoard().Chased() &
-                   positions_[idx - 2].GetBoard().Chased();
+                   ~positions_[idx - 2].GetBoard().Chased();
     }
   }
 
