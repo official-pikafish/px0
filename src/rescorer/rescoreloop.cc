@@ -28,12 +28,20 @@
 #include "rescorer/rescoreloop.h"
 
 #include <optional>
+#include <regex>
 #include <sstream>
 
 #include "neural/decoder.h"
 #include "trainingdata/reader.h"
 #include "utils/filesystem.h"
 #include "utils/optionsparser.h"
+
+#ifdef _WIN64
+#include <windows.h>
+#else
+#include <unistd.h>
+#include <sys/wait.h>
+#endif
 
 namespace lczero {
 
@@ -75,8 +83,154 @@ const OptionId kNnueBestMoveId{
     "nnue-best-move", "",
     "For the SF training data record the best move instead of the played one. "
     "If set to true the generated files do not compress well."};
+const OptionId kNnueEvaluatorId{
+    "nnue-evaluator", "", "Use NNUE evaluator to rescore the training data."};
 const OptionId kDeleteFilesId{"delete-files", "",
                               "Delete the input files after processing."};
+
+class NNUEEvaluator {
+ public:
+  NNUEEvaluator(const std::string& evaluator) {
+#ifdef _WIN64
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+
+    if (!CreatePipe(&childStdInRead, &childStdInWrite, &saAttr, 0)) {
+      throw Exception("StdIn pipe creation failed");
+    }
+    if (!SetHandleInformation(childStdInWrite, HANDLE_FLAG_INHERIT, 0)) {
+      throw Exception("StdIn pipe set handle information failed");
+    }
+
+    if (!CreatePipe(&childStdOutRead, &childStdOutWrite, &saAttr, 0)) {
+      throw Exception("StdOut pipe creation failed");
+    }
+    if (!SetHandleInformation(childStdOutRead, HANDLE_FLAG_INHERIT, 0)) {
+      throw Exception("StdOut pipe set handle information failed");
+    }
+
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+    ZeroMemory(&si, sizeof(STARTUPINFO));
+    si.cb = sizeof(STARTUPINFO);
+    si.hStdError = childStdOutWrite;
+    si.hStdOutput = childStdOutWrite;
+    si.hStdInput = childStdInRead;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+    if (!CreateProcess(NULL, const_cast<LPSTR>(evaluator.c_str()), NULL, NULL, TRUE, 0,
+                       NULL, NULL, &si, &pi)) {
+      throw Exception("Create process failed");
+    }
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(childStdOutWrite);
+    CloseHandle(childStdInRead);
+#else
+    if (pipe(pipe_in) == -1 || pipe(pipe_out) == -1) {
+      throw Exception("Failed to create pipes.");
+    }
+
+    pid = fork();
+    if (pid == -1) {
+      throw Exception("Failed to fork.");
+    }
+
+    if (pid == 0) {
+      dup2(pipe_in[0], STDIN_FILENO);
+      dup2(pipe_out[1], STDOUT_FILENO);
+
+      close(pipe_in[0]);
+      close(pipe_in[1]);
+      close(pipe_out[0]);
+      close(pipe_out[1]);
+
+      char* argv[] = {nullptr};
+      execve(evaluator.c_str(), argv, environ);
+      std::cerr << "Create process failed." << std::endl;
+      _exit(1);
+    } else {
+      close(pipe_in[0]);
+      close(pipe_out[1]);
+    }
+#endif
+  }
+
+  ~NNUEEvaluator() {
+    std::string command = "quit\n";
+#ifdef _WIN64
+    DWORD written;
+    WriteFile(childStdInWrite, command.c_str(), command.length(), &written, NULL);
+    CloseHandle(childStdInWrite);
+    CloseHandle(childStdOutRead);
+#else
+    [[maybe_unused]] int written = write(pipe_in[1], command.c_str(), command.length());
+    if (pid != 0) {
+      close(pipe_in[1]);
+      close(pipe_out[0]);
+      waitpid(pid, nullptr, 0);
+    }
+#endif
+  }
+
+  std::pair<float, float> EvaluatePosition(const std::string& fen) {
+    std::string command = "fen " + fen + "\neval\n";
+#ifdef _WIN64
+    DWORD written;
+    if (!WriteFile(childStdInWrite, command.c_str(), command.length(), &written,
+                   NULL)) {
+#else
+    if (write(pipe_in[1], command.c_str(), command.length()) < 0) {
+#endif
+      throw Exception("Failed to write to pipe");
+    }
+
+    char buffer[256];
+    std::string output;
+#ifdef _WIN64
+    DWORD bytes_read;
+    while (ReadFile(childStdOutRead, buffer, sizeof(buffer) - 1, &bytes_read,
+                    NULL) &&
+           bytes_read > 0) {
+#else
+    ssize_t bytes_read;
+    while ((bytes_read = read(pipe_out[0], buffer, sizeof(buffer) - 1)) > 0) {
+#endif
+      buffer[bytes_read] = '\0';
+      output = buffer;
+      if (output.find("wdl") != std::string::npos) {
+        break;
+      }
+    }
+    std::regex re(R"(wdl\s(\d+)\s(\d+)\s(\d+))");
+    std::smatch match;
+    if (std::regex_search(output, match, re)) {
+      float w = std::stoi(match[1]) / 1000.0;
+      float d = std::stoi(match[2]) / 1000.0;
+      float l = std::stoi(match[3]) / 1000.0;
+      float q = w - l;
+      return {q, d};
+    } else {
+      throw Exception("Failed to extract WDL from output.");
+    }
+  }
+
+ private:
+#ifdef _WIN64
+  HANDLE childStdInRead = NULL;
+  HANDLE childStdInWrite = NULL;
+  HANDLE childStdOutRead = NULL;
+  HANDLE childStdOutWrite = NULL;
+#else
+  int pipe_in[2];
+  int pipe_out[2];
+  pid_t pid;
+#endif
+};
 
 class PolicySubNode {
  public:
@@ -287,25 +441,16 @@ int ResultForData(const V6TrainingData& data) {
   return static_cast<int>(data.result_q);
 }
 
-float Px0toNNUE(float q, float offset = 0, float outscaling = 361) {
-  float e_powered = std::exp(-(offset / outscaling));
-  float e_2x_powered = std::exp((2 * offset) / outscaling);
-  float e_4x_powered = std::exp((4 * offset) / outscaling);
-
-  float numerator_part1 = -((1 + e_2x_powered) * q);
-  float numerator_part2 =
-      std::sqrt(4 * e_2x_powered + q * q - 2 * e_2x_powered * q * q +
-                e_4x_powered * q * q);
-  float numerator = e_powered * (numerator_part1 - numerator_part2);
-
-  float denominator = 2 * (-1 + q);
+float Px0toNNUE(float q, float scaling = 416.11539129) {
+  float numerator =  1 + q;
+  float denominator = 1 - q;
 
   if (denominator == 0) {
     // Handle division by zero or return some error value
     return std::numeric_limits<float>::infinity();  // or throw an exception
   }
 
-  return outscaling * std::log(numerator / denominator);
+  return scaling * std::log(numerator / denominator);
 }
 
 std::string AsNnueString(const Position& p, Move best, Move played, float q,
@@ -333,7 +478,8 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
 
 void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
                  float distOffset, int newInputFormat,
-                 std::string nnue_plain_file, ProcessFileFlags flags) {
+                 std::string nnue_plain_file, ProcessFileFlags flags,
+                 std::unique_ptr<NNUEEvaluator>& evaluator) {
   // Scope to ensure reader and writer are closed before deleting source file.
   {
     try {
@@ -554,6 +700,25 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
         }
       }
 
+      // If an NNUE evaluator is provided, use it to rescore the training data
+      // and update the best_q and best_d field.
+      if (evaluator) {
+        PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
+                      &board, &rule50ply, &gameply);
+        history.Reset(board, rule50ply, gameply);
+        for (size_t i = 0; i < fileContents.size(); i++) {
+          auto& chunk = fileContents[i];
+          if (chunk.visits > 0) {
+            auto [q, d] = evaluator->EvaluatePosition(GetFen(history.Last()));
+            chunk.best_q = q;
+            chunk.best_d = d;
+          }
+          if (i < moves.size()) {
+            history.Append(moves[i]);
+          }
+        }
+      }
+
       if (!outputDir.empty()) {
         std::string fileName = file.substr(file.find_last_of("/\\") + 1);
         TrainingDataWriter writer(outputDir + "/" + fileName);
@@ -623,15 +788,19 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
 void ProcessFiles(const std::vector<std::string>& files, std::string outputDir,
                   float distTemp, float distOffset, int newInputFormat,
                   int offset, int mod, std::string nnue_plain_file,
-                  ProcessFileFlags flags) {
+                  ProcessFileFlags flags, std::string nnue_evaluator) {
   std::cerr << "Thread: " << offset << " starting" << std::endl;
+  std::unique_ptr<NNUEEvaluator> evaluator;
+  if (!nnue_evaluator.empty()) {
+    evaluator = std::make_unique<NNUEEvaluator>(nnue_evaluator);
+  }
   for (size_t i = offset; i < files.size(); i += mod) {
     if (files[i].rfind(".gz") != files[i].size() - 3) {
       std::cerr << "Skipping: " << files[i] << std::endl;
       continue;
     }
     ProcessFile(files[i], outputDir, distTemp, distOffset, newInputFormat,
-                nnue_plain_file, flags);
+                nnue_plain_file, flags, evaluator);
   }
 }
 
@@ -722,6 +891,7 @@ void RescoreLoop::RunLoop() {
   options_.Add<StringOption>(kNnuePlainFileId);
   options_.Add<BoolOption>(kNnueBestScoreId) = true;
   options_.Add<BoolOption>(kNnueBestMoveId) = false;
+  options_.Add<StringOption>(kNnueEvaluatorId) = "";
   options_.Add<BoolOption>(kDeleteFilesId) = true;
 
   if (!options_.ProcessAllFlags()) return;
@@ -780,7 +950,8 @@ void RescoreLoop::RunLoop() {
             options_.GetOptionsDict().Get<int>(kNewInputFormatId), offset_val,
             threads,
             options_.GetOptionsDict().Get<std::string>(kNnuePlainFileId),
-            flags);
+            flags,
+            options_.GetOptionsDict().Get<std::string>(kNnueEvaluatorId));
       });
     }
     for (size_t i = 0; i < threads_.size(); i++) {
@@ -793,7 +964,8 @@ void RescoreLoop::RunLoop() {
         options_.GetOptionsDict().Get<float>(kTempId),
         options_.GetOptionsDict().Get<float>(kDistributionOffsetId),
         options_.GetOptionsDict().Get<int>(kNewInputFormatId), 0, 1,
-        options_.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags);
+        options_.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags,
+        options_.GetOptionsDict().Get<std::string>(kNnueEvaluatorId));
   }
   std::cout << "Games processed: " << games << std::endl;
   std::cout << "Positions processed: " << positions << std::endl;
