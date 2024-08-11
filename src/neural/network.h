@@ -112,7 +112,7 @@ struct NetworkCapabilities {
   }
 
   bool has_wdl() const {
-    return output_format != pblczero::NetworkFormat::OUTPUT_WDL;
+    return output_format == pblczero::NetworkFormat::OUTPUT_WDL;
   }
 };
 
