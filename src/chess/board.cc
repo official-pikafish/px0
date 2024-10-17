@@ -1068,8 +1068,10 @@ std::string ChessBoard::DebugString() const {
   std::string result;
   for (int i = 9; i >= 0; --i) {
     for (int j = 0; j < 9; ++j) {
-      if (!our_pieces_.get(i, j) && !their_pieces_.get(i, j))
+      if (!our_pieces_.get(i, j) && !their_pieces_.get(i, j)) {
+        result += '.';
         continue;
+      }
       if (our_king_ == i * 9 + j) {
         result += 'K';
         continue;

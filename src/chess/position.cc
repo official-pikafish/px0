@@ -65,13 +65,20 @@ char GetPieceAt(const lczero::ChessBoard& board, int row, int col) {
 namespace lczero {
 
 Position::Position(const Position& parent, Move m)
-    : rule50_ply_(parent.rule50_ply_ + 1), ply_count_(parent.ply_count_ + 1) {
-  them_board_ = parent.us_board_;
+    : them_board_(parent.us_board_),
+      rule50_ply_(parent.rule50_ply_),
+      ply_count_(parent.ply_count_ + 1),
+      us_check(parent.them_check),
+      them_check(parent.us_check) {
   const bool is_zeroing = them_board_.ApplyMove(m);
   us_board_ = them_board_;
   us_board_.Mirror();
-  us_check = parent.them_check;
-  them_check = parent.us_check + us_board_.IsUnderCheck();
+  if (!us_board_.IsUnderCheck() || ++them_check <= 10) {
+    if (us_check > 10 && parent.us_board_.IsUnderCheck())
+      ++us_check;
+    else
+      ++rule50_ply_;
+  }
   if (is_zeroing) {
     rule50_ply_ = 0;
     us_check = 0;
@@ -110,7 +117,7 @@ GameResult PositionHistory::ComputeGameResult() const {
     return IsBlackToMove() ? result : -result;
   }
   if (!board.HasMatingMaterial()) return GameResult::DRAW;
-  if (Last().GetRealRule50Ply() >= 120) return GameResult::DRAW;
+  if (Last().GetRule50Ply() >= 120) return GameResult::DRAW;
 
   return GameResult::UNDECIDED;
 }

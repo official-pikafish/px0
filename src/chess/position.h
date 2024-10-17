@@ -62,9 +62,6 @@ class Position {
   // Number of ply with no captures.
   int GetRule50Ply() const { return rule50_ply_; }
 
-  // Rule 50 but exclude extra checks.
-  int GetRealRule50Ply() const { return rule50_ply_ - 2 * (std::max(0, us_check - 10) + std::max(0, them_check - 10)); }
-
   // Gets board from the point of view of player to move.
   const ChessBoard& GetBoard() const { return us_board_; }
   // Gets board from the point of view of opponent.

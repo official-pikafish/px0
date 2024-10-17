@@ -1941,13 +1941,33 @@ void SearchWorker::ExtendNode(Node* node, int depth,
       return;
     } else if (repetitions == 1 && depth - 1 >= 4 &&
                params_.GetTwoFoldDraws() &&
-               history->RuleJudge() == GameResult::DRAW &&
                depth - 1 >= history->Last().GetPliesSincePrevRepetition()) {
       const auto cycle_length = history->Last().GetPliesSincePrevRepetition();
       // use plies since first repetition as moves left; exact if forced draw.
-      node->MakeTerminal(history->RuleJudge(), (float)cycle_length,
-                         Node::Terminal::TwoFold);
-      return;
+      GameResult result = history->RuleJudge();
+      if (result == GameResult::DRAW) {
+        node->MakeTerminal(history->RuleJudge(), (float)cycle_length,
+                           Node::Terminal::TwoFold);
+        return;
+      } else {
+        int idx = history->GetLength() - 1;
+        int idx2 = idx;
+        while (history->GetPositionAt(--idx2).GetBoard() !=
+               history->Last().GetBoard())
+          ;
+        if (idx2 > 0 && history->GetPositionAt(idx - 1).GetBoard() ==
+                            history->GetPositionAt(idx2 - 1).GetBoard()) {
+          --idx;
+          while (++idx2 != idx &&
+                 !history->GetPositionAt(idx2).GetRepetitions())
+            ;
+          if (idx2 == idx && history->Last().GetRule50Ply() < 120) {
+            node->MakeTerminal(result, (float)cycle_length,
+                               Node::Terminal::TwoFold);
+            return;
+          }
+        }
+      }
     }
 
     if (!board.HasMatingMaterial()) {
@@ -1955,7 +1975,7 @@ void SearchWorker::ExtendNode(Node* node, int depth,
       return;
     }
 
-    if (history->Last().GetRealRule50Ply() >= 120) {
+    if (history->Last().GetRule50Ply() >= 120) {
       node->MakeTerminal(GameResult::DRAW);
       return;
     }
