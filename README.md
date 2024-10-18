@@ -29,7 +29,7 @@ git checkout -t master
 
 
 If you prefer to download an archive, you need to also download and place the submodule:
- * Download the [.zip](https://api.github.com/repos/LeelaChessZero/lc0/zipball/release/0.29) file ([.tar.gz](https://api.github.com/repos/LeelaChessZero/lc0/tarball/release/0.29) archive is also available)
+ * Download the [.zip](https://api.github.com/repos/LeelaChessZero/lc0/zipball/release/0.31) file ([.tar.gz](https://api.github.com/repos/LeelaChessZero/lc0/tarball/release/0.31) archive is also available)
  * Extract
  * Download https://github.com/LeelaChessZero/lczero-common/archive/master.zip (also available as [.tar.gz](https://github.com/LeelaChessZero/lczero-common/archive/master.tar.gz))
  * Move the second archive into the first archive's `libs/lczero-common/` folder and extract
