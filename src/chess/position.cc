@@ -67,9 +67,9 @@ namespace lczero {
 Position::Position(const Position& parent, Move m)
     : them_board_(parent.us_board_),
       rule50_ply_(parent.rule50_ply_),
-      ply_count_(parent.ply_count_ + 1),
       us_check(parent.them_check),
-      them_check(parent.us_check) {
+      them_check(parent.us_check),
+      ply_count_(parent.ply_count_ + 1) {
   const bool is_zeroing = them_board_.ApplyMove(m);
   us_board_ = them_board_;
   us_board_.Mirror();
