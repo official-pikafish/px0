@@ -65,13 +65,12 @@ char GetPieceAt(const lczero::ChessBoard& board, int row, int col) {
 namespace lczero {
 
 Position::Position(const Position& parent, Move m)
-    : them_board_(parent.us_board_),
+    : us_board_(parent.us_board_),
       rule50_ply_(parent.rule50_ply_),
       us_check(parent.them_check),
       them_check(parent.us_check),
       ply_count_(parent.ply_count_ + 1) {
-  const bool is_zeroing = them_board_.ApplyMove(m);
-  us_board_ = them_board_;
+  const bool is_zeroing = us_board_.ApplyMove(m);
   us_board_.Mirror();
   if (!us_board_.IsUnderCheck() || ++them_check <= 10) {
     if (us_check > 10 && parent.us_board_.IsUnderCheck())
@@ -89,8 +88,6 @@ Position::Position(const Position& parent, Move m)
 Position::Position(const ChessBoard& board, int rule50_ply, int game_ply)
     : rule50_ply_(rule50_ply), repetitions_(0), ply_count_(game_ply) {
   us_board_ = board;
-  them_board_ = board;
-  them_board_.Mirror();
 }
 
 uint64_t Position::Hash() const {
@@ -145,10 +142,10 @@ GameResult PositionHistory::RuleJudge() const {
 
   bool checkThem = last.GetBoard().IsUnderCheck();
   bool checkUs = positions_[size(positions_) - 2].GetBoard().IsUnderCheck();
-  uint16_t chaseThem = last.GetThemBoard().Chased() &
-                       ~positions_[size(positions_) - 2].GetBoard().Chased();
-  uint16_t chaseUs = positions_[size(positions_) - 2].GetThemBoard().Chased() &
-                     ~positions_[size(positions_) - 3].GetBoard().Chased();
+  uint16_t chaseThem = last.GetBoard().ThemChased() &
+                       ~positions_[size(positions_) - 2].GetBoard().UsChased();
+  uint16_t chaseUs = positions_[size(positions_) - 2].GetBoard().ThemChased() &
+                     ~positions_[size(positions_) - 3].GetBoard().UsChased();
 
   for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
     const auto& pos = positions_[idx];
@@ -172,11 +169,13 @@ GameResult PositionHistory::RuleJudge() const {
         chaseThem = chaseUs = 0;
       else
         checkUs = false;
-      chaseThem &= pos.GetThemBoard().Chased() &
-                   ~positions_[idx - 1].GetBoard().Chased();
+      chaseThem &= pos.GetBoard().ThemChased() &
+                   ~positions_[idx - 1].GetBoard().UsChased();
       if (idx - 2 >= 0)
-        chaseUs &= positions_[idx - 1].GetThemBoard().Chased() &
-                   ~positions_[idx - 2].GetBoard().Chased();
+      {
+        chaseUs &= positions_[idx - 1].GetBoard().ThemChased() &
+                   ~positions_[idx - 2].GetBoard().UsChased();
+      }
     }
   }
 
@@ -189,7 +188,7 @@ int PositionHistory::ComputeLastMoveRepetitions(int* cycle_length) const {
   // TODO(crem) implement hash/cache based solution.
   if (last.GetRule50Ply() < 4) return 0;
 
-  for (int idx = positions_.size() - 3; idx >= 0; idx -= 2) {
+  for (int idx = positions_.size() - 5; idx >= 0; idx -= 2) {
     const auto& pos = positions_[idx];
     if (pos.GetBoard() == last.GetBoard()) {
       *cycle_length = positions_.size() - 1 - idx;
@@ -221,7 +220,8 @@ uint64_t PositionHistory::HashLast(int positions) const {
 
 std::string GetFen(const Position& pos) {
   std::string result;
-  const ChessBoard& board = pos.GetWhiteBoard();
+  ChessBoard board = pos.GetBoard();
+  if (board.flipped()) board.Mirror();
   for (int row = 9; row >= 0; --row) {
     int emptycounter = 0;
     for (int col = 0; col < 9; ++col) {

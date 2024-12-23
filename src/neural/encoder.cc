@@ -114,8 +114,8 @@ InputPlanes EncodePositionForNN(
        ++i, --history_idx) {
     const Position& position =
         history.GetPositionAt(history_idx < 0 ? 0 : history_idx);
-    const ChessBoard& board =
-        flip ? position.GetThemBoard() : position.GetBoard();
+    ChessBoard board = position.GetBoard();
+    if (flip) board.Mirror();
     if (history_idx < 0 && fill_empty_history == FillEmptyHistory::NO) break;
     // Board may be flipped so compare with position.GetBoard().
     if (history_idx < 0 && fill_empty_history == FillEmptyHistory::FEN_ONLY &&
