@@ -73,7 +73,7 @@ int TransformForPosition(pblczero::NetworkFormat::InputFormat input_format,
 
 InputPlanes EncodePositionForNN(
     pblczero::NetworkFormat::InputFormat input_format,
-    const PositionHistory& history, int history_planes,
+    std::span<const Position> history, int history_planes,
     FillEmptyHistory fill_empty_history, int* transform_out) {
   InputPlanes result(kAuxPlaneBase + 4);
 
@@ -83,7 +83,7 @@ InputPlanes EncodePositionForNN(
   // history before these points is not relevant to the final result.
   bool stop_early = IsCanonicalFormat(input_format);
   {
-    const ChessBoard& board = history.Last().GetBoard();
+    const ChessBoard& board = history.back().GetBoard();
     const bool we_are_black = board.flipped();
     if (IsCanonicalFormat(input_format)) {
       transform = ChooseTransform(board);
@@ -91,9 +91,9 @@ InputPlanes EncodePositionForNN(
       if (we_are_black) result[kAuxPlaneBase].SetAll();
     }
     if (IsHectopliesFormat(input_format)) {
-      result[kAuxPlaneBase + 1].Fill(history.Last().GetRule50Ply() / 120.0f);
+      result[kAuxPlaneBase + 1].Fill(history.back().GetRule50Ply() / 120.0f);
     } else {
-      result[kAuxPlaneBase + 1].Fill(history.Last().GetRule50Ply());
+      result[kAuxPlaneBase + 1].Fill(history.back().GetRule50Ply());
     }
     // Plane kAuxPlaneBase + 2 used to be movecount plane, now it's all zeros
     // unless we need it for canonical armageddon side to move.
@@ -109,11 +109,10 @@ InputPlanes EncodePositionForNN(
       input_format == pblczero::NetworkFormat::
                           INPUT_112_WITH_CANONICALIZATION_V2_ARMAGEDDON;
   bool flip = false;
-  int history_idx = history.GetLength() - 1;
+  int history_idx = history.size() - 1;
   for (int i = 0; i < std::min(history_planes, kMoveHistory);
        ++i, --history_idx) {
-    const Position& position =
-        history.GetPositionAt(history_idx < 0 ? 0 : history_idx);
+    const Position& position = history[history_idx < 0 ? 0 : history_idx];
     ChessBoard board = position.GetBoard();
     if (flip) board.Mirror();
     if (history_idx < 0 && fill_empty_history == FillEmptyHistory::NO) break;
@@ -172,6 +171,14 @@ InputPlanes EncodePositionForNN(
   }
   if (transform_out) *transform_out = transform;
   return result;
+}
+
+InputPlanes EncodePositionForNN(
+    pblczero::NetworkFormat::InputFormat input_format,
+    const PositionHistory& history, int history_planes,
+    FillEmptyHistory fill_empty_history, int* transform_out) {
+  return EncodePositionForNN(input_format, history.GetPositions(),
+                             history_planes, fill_empty_history, transform_out);
 }
 
 }  // namespace lczero

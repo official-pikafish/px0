@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <span>
 #include <string>
 
 #include "chess/board.h"
@@ -143,6 +144,8 @@ class PositionHistory {
 
   // Checks for any repetitions since the last time 50 move rule was reset.
   bool DidRepeatSinceLastZeroingMove() const;
+
+  std::span<const Position> GetPositions() const { return positions_; }
 
  private:
   int ComputeLastMoveRepetitions(int* cycle_length) const;
