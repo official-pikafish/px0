@@ -172,10 +172,8 @@ GameResult PositionHistory::RuleJudge() const {
       chaseThem &= pos.GetBoard().ThemChased() &
                    ~positions_[idx - 1].GetBoard().UsChased();
       if (idx - 2 >= 0)
-      {
         chaseUs &= positions_[idx - 1].GetBoard().ThemChased() &
                    ~positions_[idx - 2].GetBoard().UsChased();
-      }
     }
   }
 

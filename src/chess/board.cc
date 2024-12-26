@@ -824,7 +824,7 @@ int ChessBoard::MakeChase(BoardSquare to) const {
   return 1 << id_board_[to.as_int()];
 }
 
-uint16_t ChessBoard::Chased() const {
+uint16_t ChessBoard::UsChased() const {
   uint16_t chase = 0;
 
   // Add chase information for a type of attacker
@@ -887,6 +887,12 @@ uint16_t ChessBoard::Chased() const {
   addChase(BISHOP, bishops_);
 
   return chase;
+}
+
+uint16_t ChessBoard::ThemChased() const {
+  auto board = *this;
+  board.Mirror();
+  return board.UsChased();
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {

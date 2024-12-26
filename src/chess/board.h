@@ -90,7 +90,9 @@ class ChessBoard {
   // Return a chase information in chase map
   int MakeChase(BoardSquare to) const;
   // Returns chasing information for "ours" (white)
-  uint16_t Chased() const;
+  uint16_t UsChased() const;
+  // Returns chasing information for "theirs" (black)
+  uint16_t ThemChased() const;
 
   uint64_t Hash() const {
     return HashCat({our_pieces_.as_int(), their_pieces_.as_int(),
