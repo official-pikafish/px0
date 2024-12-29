@@ -25,9 +25,10 @@
   Program grant you additional permission to convey the resulting work.
 */
 
-#include "src/mcts/stoppers/common.h"
+#include "search/classic/stoppers/common.h"
 
 namespace lczero {
+namespace classic {
 
 const OptionId kNNCacheSizeId{
     "nncache", "NNCacheSize",
@@ -185,4 +186,5 @@ std::unique_ptr<TimeManager> MakeCommonTimeManager(
                                              move_overhead);
 }
 
+}  // namespace classic
 }  // namespace lczero
