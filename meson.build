@@ -159,6 +159,7 @@ files += gen_proto_src.process('src/neural/xla/hlo.proto',
 common_files += [
   'src/chess/bitboard.cc',
   'src/chess/board.cc',
+  'src/chess/gamestate.cc',
   'src/chess/position.cc',
   'src/chess/uciloop.cc',
   'src/neural/backend.cc',
@@ -214,6 +215,7 @@ files += [
   'src/search/classic/stoppers/smooth.cc',
   'src/search/classic/stoppers/stoppers.cc',
   'src/search/classic/stoppers/timemgr.cc',
+  'src/search/register.cc',
   'src/selfplay/game.cc',
   'src/selfplay/loop.cc',
   'src/selfplay/multigame.cc',
@@ -226,6 +228,10 @@ files += [
   'src/utils/histogram.cc',
   'src/utils/numa.cc',
   'src/utils/weights_adapter.cc',
+]
+
+files += [
+  'src/search/instamove/instamove.cc',
 ]
 includes += include_directories('src')
 
