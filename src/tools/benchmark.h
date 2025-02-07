@@ -97,7 +97,7 @@ class Benchmark{
       "CnN1k1b2/c3a4/4ba3/9/2nr5/9/9/4C4/4A4/4KA3 w"
   };
 
-  void Run();
+  void Run(bool run_shorter_benchmark = false);
   void OnBestMove(const BestMoveInfo& move);
   void OnInfo(const std::vector<ThinkingInfo>& infos);
 };
