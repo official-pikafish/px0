@@ -74,7 +74,7 @@ SelfPlayGame::SelfPlayGame(PlayerOptions white, PlayerOptions black,
     : options_{white, black},
       training_data_(classic::SearchParams(*white.uci_options).GetHistoryFill(),
                      classic::SearchParams(*black.uci_options).GetHistoryFill(),
-                     white.network->GetCapabilities().input_format) {
+                     pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE) {
   orig_fen_ = opening.start_fen;
   tree_[0] = std::make_shared<classic::NodeTree>();
   tree_[0]->ResetToPosition(orig_fen_, {});
@@ -119,11 +119,6 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
                         bool enable_resign) {
   bool blacks_move = tree_[0]->IsBlackToMove();
 
-  // If we are training, verify that input formats are consistent.
-  if (training && options_[0].network->GetCapabilities().input_format !=
-                      options_[1].network->GetCapabilities().input_format) {
-    throw Exception("Can't mix networks with different input format!");
-  }
   // Do moves while not end of the game. (And while not abort_)
   while (!abort_) {
     game_result_ = tree_[0]->GetPositionHistory().ComputeGameResult();
@@ -151,10 +146,10 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
               options_[idx].best_move_callback, options_[idx].info_callback);
 
       search_ = std::make_unique<classic::Search>(
-          *tree_[idx], options_[idx].network, std::move(responder),
+          *tree_[idx], options_[idx].backend, std::move(responder),
           /* searchmoves */ MoveList(), std::chrono::steady_clock::now(),
           std::move(stoppers), /* infinite */ false, /* ponder */ false,
-          *options_[idx].uci_options, options_[idx].cache);
+          *options_[idx].uci_options);
     }
 
     // Do search.
@@ -264,11 +259,18 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
         }
       }
       // Append training data. The GameResult is later overwritten.
-      NNCacheLock nneval =
-          search_->GetCachedNNEval(tree_[idx]->GetCurrentHead());
+      std::vector<Move> legal_moves = tree_[idx]
+                                          ->GetPositionHistory()
+                                          .Last()
+                                          .GetBoard()
+                                          .GenerateLegalMoves();
+      std::optional<EvalResult> nneval =
+          options_[idx].backend->GetCachedEvaluation(EvalPosition{
+              tree_[idx]->GetPositionHistory().GetPositions(), legal_moves});
       training_data_.Add(tree_[idx]->GetCurrentHead(),
                          tree_[idx]->GetPositionHistory(), best_eval,
-                         played_eval, best_is_proof, best_move, move, nneval);
+                         played_eval, best_is_proof, best_move, move,
+                         legal_moves, nneval);
     }
     // Must reset the search before mutating the tree.
     search_.reset();
