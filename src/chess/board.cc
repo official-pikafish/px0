@@ -720,6 +720,7 @@ void SetIfSquare(const BoardSquare& from, const BoardSquare& to, T&... args) {
 }
 
 bool ChessBoard::ApplyMove(Move move) {
+  assert(our_pieces_.intersects(move.from().as_board()));
   auto from = move.from();
   auto to = move.to();
 
