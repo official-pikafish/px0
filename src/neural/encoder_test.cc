@@ -107,7 +107,7 @@ TEST(EncodePositionForNN, EncodeFiftyMoveCounter) {
   history.Reset(board, 0, 1);
 
   // 1. h2e2
-  history.Append(Move("h2e2", false));
+  history.Append(history.Last().GetBoard().ParseMove("h2e2"));
 
   InputPlanes encoded_planes =
       EncodePositionForNN(pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
@@ -122,7 +122,7 @@ TEST(EncodePositionForNN, EncodeFiftyMoveCounter) {
   EXPECT_EQ(fifty_move_counter_plane.value, 1.0f);
 
   // 1. h2e2 h9g7
-  history.Append(Move("h9g7", true));
+  history.Append(history.Last().GetBoard().ParseMove("h9g7"));
 
   encoded_planes =
       EncodePositionForNN(pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
@@ -143,7 +143,7 @@ TEST(EncodePositionForNN, EncodeFiftyMoveCounterFormat2) {
   history.Reset(board, 0, 1);
 
   // 1. h2e2
-  history.Append(Move("h2e2", false));
+  history.Append(history.Last().GetBoard().ParseMove("h2e2"));
 
   InputPlanes encoded_planes = EncodePositionForNN(
       pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,
@@ -157,7 +157,7 @@ TEST(EncodePositionForNN, EncodeFiftyMoveCounterFormat2) {
   EXPECT_EQ(fifty_move_counter_plane.value, 1.0f);
 
   // 1. h2e2 h9g7
-  history.Append(Move("h9g7", true));
+  history.Append(history.Last().GetBoard().ParseMove("h9g7"));
 
   encoded_planes = EncodePositionForNN(
       pblczero::NetworkFormat::INPUT_112_WITH_CANONICALIZATION, history, 8,

@@ -195,21 +195,21 @@ void Validate(const std::vector<V6TrainingData>& fileContents,
     int transform = TransformForPosition(input_format, history);
     // If real v6 data, can confirm that played_idx matches the inferred move.
     if (fileContents[i].visits > 0) {
-      if (fileContents[i].played_idx != moves[i].as_nn_index(transform)) {
+      if (fileContents[i].played_idx != MoveToNNIndex(moves[i], transform)) {
         throw Exception("Move performed is not listed as played.");
       }
     }
     // Move shouldn't be marked illegal unless there is 0 visits, which should
     // only happen if invariance_info is marked with the placeholder bit.
-    if (!(fileContents[i].probabilities[moves[i].as_nn_index(transform)] >=
+    if (!(fileContents[i].probabilities[MoveToNNIndex(moves[i], transform)] >=
           0.0f) &&
         (fileContents[i].invariance_info & 64) == 0) {
-      std::cerr << "Illegal move: " << moves[i].as_string() << std::endl;
+      std::cerr << "Illegal move: " << moves[i].ToString() << std::endl;
       throw Exception("Move performed is marked illegal in probabilities.");
     }
     auto legal = history.Last().GetBoard().GenerateLegalMoves();
     if (std::find(legal.begin(), legal.end(), moves[i]) == legal.end()) {
-      std::cerr << "Illegal move: " << moves[i].as_string() << std::endl;
+      std::cerr << "Illegal move: " << moves[i].ToString() << std::endl;
       throw Exception("Move performed is an illegal move.");
     }
     history.Append(moves[i]);
@@ -307,9 +307,8 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
                   p.GetBoard().theirs().get(best.to());
   std::ostringstream out;
   out << "fen " << GetFen(p) << std::endl;
-  if (p.IsBlackToMove()) best.Mirror(), played.Mirror();
-  out << "move "
-      << (flags.nnue_best_move ? best.as_string() : played.as_string())
+  if (p.IsBlackToMove()) best.Flip(), played.Flip();
+  out << "move " << (flags.nnue_best_move ? best.ToString() : played.ToString())
       << std::endl;
   // Formula from dblue
   out << "score "
@@ -343,7 +342,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
         // All moves decoded are from the point of view of the side after the
         // move so need to mirror them all to be applicable to apply to the
         // position before.
-        moves.back().Mirror();
+        moves.back().Flip();
       }
       Validate(fileContents, moves);
       games += 1;
@@ -406,7 +405,7 @@ void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
           }
           if (i + 1 < fileContents.size()) {
             int transform = TransformForPosition(input_format, history);
-            int idx = moves[i].as_nn_index(transform);
+            int idx = MoveToNNIndex(moves[i], transform);
             if (rootNode->children[idx] == nullptr) {
               break;
             }
@@ -643,7 +642,7 @@ void BuildSubs(const std::vector<std::string>& files) {
       // All moves decoded are from the point of view of the side after the
       // move so need to mirror them all to be applicable to apply to the
       // position before.
-      moves.back().Mirror();
+      moves.back().Flip();
     }
     Validate(fileContents, moves);
 
@@ -668,7 +667,7 @@ void BuildSubs(const std::vector<std::string>& files) {
       }
       if (i < fileContents.size() - 1) {
         int transform = TransformForPosition(input_format, history);
-        int idx = moves[i].as_nn_index(transform);
+        int idx = MoveToNNIndex(moves[i], transform);
         if (rootNode->children[idx] == nullptr) {
           rootNode->children[idx] = new PolicySubNode();
         }

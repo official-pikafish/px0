@@ -33,36 +33,38 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "chess/types.h"
+
+namespace lczero {
 namespace {
 // GetPieceAt returns the piece found at row, col on board or the null-char '\0'
 // in case no piece there.
 char GetPieceAt(const lczero::ChessBoard& board, int row, int col) {
   char c = '\0';
-  if (board.ours().get(row, col) || board.theirs().get(row, col)) {
-    if (board.rooks().get(row, col)) {
+  const Square square(File::FromIdx(col), Rank::FromIdx(row));
+  if (board.ours().get(square) || board.theirs().get(square)) {
+    if (board.rooks().get(square)) {
       c = 'R';
-    } else if (board.advisors().get(row, col)) {
+    } else if (board.advisors().get(square)) {
       c = 'A';
-    } else if (board.cannons().get(row, col)) {
+    } else if (board.cannons().get(square)) {
       c = 'C';
-    } else if(board.pawns().get(row, col)) {
+    } else if (board.pawns().get(square)) {
       c = 'P';
-    } else if (board.knights().get(row, col)) {
+    } else if (board.knights().get(square)) {
       c = 'N';
-    } else if (board.bishops().get(row, col)) {
+    } else if (board.bishops().get(square)) {
       c = 'B';
-    } else if (board.kings().get(row, col)) {
+    } else if (board.kings().get(square)) {
       c = 'K';
     }
-    if (board.theirs().get(row, col)) {
+    if (board.theirs().get(square)) {
       c = std::tolower(c);  // Capitals are for white.
     }
   }
   return c;
 }
-
 }  // namespace
-namespace lczero {
 
 Position::Position(const Position& parent, Move m)
     : us_board_(parent.us_board_),

@@ -31,6 +31,7 @@
 #include <string>
 
 #include "chess/bitboard.h"
+#include "chess/types.h"
 #include "utils/hashcat.h"
 
 namespace lczero {
@@ -56,7 +57,7 @@ class ChessBoard {
   // If @rule50_ply and @moves are not nullptr, they are filled with number
   // of moves without capture and number of full moves since the beginning of
   // the game.
-  void SetFromFen(std::string fen, int* rule50_ply = nullptr,
+  void SetFromFen(std::string_view fen, int* rule50_ply = nullptr,
                   int* moves = nullptr);
   // Nullifies the whole structure.
   void Clear();
@@ -73,8 +74,8 @@ class ChessBoard {
   bool ApplyMove(Move move);
   // Checkers BitBoard to square sq
   template<bool our = true>
-  BitBoard CheckersTo(const BoardSquare &ksq, const BitBoard& occupied) const;
-  BitBoard RecapturesTo(const BoardSquare &sq) const;
+  BitBoard CheckersTo(const Square& ksq, const BitBoard& occupied) const;
+  BitBoard RecapturesTo(const Square& sq) const;
   // Checks if "our" (white) king is under check.
   bool IsUnderCheck() const { return bool(CheckersTo(our_king_, our_pieces_ | their_pieces_).as_int()); }
 
@@ -85,10 +86,17 @@ class ChessBoard {
   // Check whether pseudolegal move is legal.
   template<bool our = true>
   bool IsLegalMove(Move move) const;
-  // Returns whether two moves are actually the same move in the position.
-  bool IsSameMove(Move move1, Move move2) const;
+
+  // Parses a move from move_str.
+  // The input string should be in the "normal" notation rather than from the
+  // player to move, i.e. "e6e5" for the black pawn move.
+  // Output is currently "from the player to move" perspective (i.e. from=E3,
+  // to=E4 for the same black move). This is temporary, plan is to change it
+  // soon.
+  Move ParseMove(std::string_view move_str) const;
+
   // Return a chase information in chase map
-  int MakeChase(BoardSquare to) const;
+  int MakeChase(Square to) const;
   // Returns chasing information for "ours" (white)
   uint16_t UsChased() const;
   // Returns chasing information for "theirs" (black)
@@ -98,7 +106,7 @@ class ChessBoard {
     return HashCat({our_pieces_.as_int(), their_pieces_.as_int(),
                     rooks_.as_int(), advisors_.as_int(), cannons_.as_int(),
                     pawns_.as_int(), knights_.as_int(), bishops_.as_int(),
-                    __uint128_t(our_king_.as_int() << 16 | their_king_.as_int() << 8 | flipped_)});
+                    __uint128_t(our_king_.as_idx() << 16 | their_king_.as_idx() << 8 | flipped_)});
   }
 
   std::string DebugString() const;
@@ -112,55 +120,17 @@ class ChessBoard {
   BitBoard knights() const { return knights_; }
   BitBoard bishops() const { return bishops_; }
   BitBoard kings() const {
-    return our_king_.as_board() | their_king_.as_board();
+    return BitBoard::FromSquare(our_king_) | BitBoard::FromSquare(their_king_);
   }
   bool flipped() const { return flipped_; }
 
-  bool operator==(const ChessBoard& other) const {
-    return (our_pieces_ == other.our_pieces_) && (their_pieces_ == other.their_pieces_) &&
-           (rooks_ == other.rooks_) && (advisors_ == other.advisors_) &&
-           (cannons_ == other.cannons_) && (pawns_ == other.pawns_) &&
-           (knights_ == other.knights_) && (bishops_ == other.bishops_) &&
-           (our_king_ == other.our_king_) && (their_king_ == other.their_king_) &&
-           (flipped_ == other.flipped_);
-  }
-
-  bool operator!=(const ChessBoard& other) const { return !operator==(other); }
-
-  enum Square : uint8_t {
-    // clang-format off
-    A0 = 0, B0, C0, D0, E0, F0, G0, H0, I0,
-    A1, B1, C1, D1, E1, F1, G1, H1, I1,
-    A2, B2, C2, D2, E2, F2, G2, H2, I2,
-    A3, B3, C3, D3, E3, F3, G3, H3, I3,
-    A4, B4, C4, D4, E4, F4, G4, H4, I4,
-    A5, B5, C5, D5, E5, F5, G5, H5, I5,
-    A6, B6, C6, D6, E6, F6, G6, H6, I6,
-    A7, B7, C7, D7, E7, F7, G7, H7, I7,
-    A8, B8, C8, D8, E8, F8, G8, H8, I8,
-    A9, B9, C9, D9, E9, F9, G9, H9, I9,
-    // clang-format on
-  };
-
-  enum File : uint8_t {
-    // clang-format off
-    FILE_A = 0, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H, FILE_I, FILE_NB
-    // clang-format on
-  };
-
-  enum Rank : uint8_t {
-    // clang-format off
-    RANK_0 = 0, RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, RANK_9, RANK_NB
-    // clang-format on
-  };
-
-  enum PieceType : uint8_t {
-    // clang-format off
-    ROOK, ADVISOR, CANNON, PAWN, KNIGHT, BISHOP, KING, KNIGHT_TO, PAWN_TO_OURS, PAWN_TO_THEIRS, PIECE_TYPE_NB
-    // clang-format on
-  };
+  bool operator==(const ChessBoard& other) const = default;
+  bool operator!=(const ChessBoard& other) const = default;
 
  private:
+  // Sets the piece on the square.
+  void PutPiece(Square square, PieceType piece, bool is_theirs);
+
   // All white pieces.
   BitBoard our_pieces_;
   // All black pieces.
@@ -177,8 +147,8 @@ class ChessBoard {
   BitBoard knights_;
   // Bishops;
   BitBoard bishops_;
-  BoardSquare our_king_;
-  BoardSquare their_king_;
+  Square our_king_;
+  Square their_king_;
   bool flipped_ = false;  // aka "Black to move".
 
   // Rule judge

@@ -165,7 +165,7 @@ void V6TrainingDataArray::Add(const classic::Node* node,
       }
       total += P;
     }
-    result.probabilities[move.as_nn_index(0)] = fracv;
+    result.probabilities[MoveToNNIndex(move, transform)] = fracv;
   }
   if (nneval) {
     // Add small epsilon for backward compatibility with earlier value of 0.
@@ -231,11 +231,11 @@ void V6TrainingDataArray::Add(const classic::Node* node,
 
   result.visits = node->GetN();
   if (position.IsBlackToMove()) {
-    best_move.Mirror();
-    played_move.Mirror();
+    best_move.Flip();
+    played_move.Flip();
   }
-  result.best_idx = best_move.as_nn_index(transform);
-  result.played_idx = played_move.as_nn_index(transform);
+  result.best_idx = MoveToNNIndex(best_move, transform);
+  result.played_idx = MoveToNNIndex(played_move, transform);
   result.reserved = 0;
 
   // Unknown here - will be filled in once the full data has been collected.

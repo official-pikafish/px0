@@ -57,10 +57,10 @@ TEST(PositionHistory, ComputeLastMoveRepetitions1) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
   int history_idx = history.GetLength() - 1;
   const Position& repeated_position = history.GetPositionAt(history_idx);
   EXPECT_EQ(repeated_position.GetRepetitions(), 1);
@@ -71,14 +71,14 @@ TEST(PositionHistory, ComputeLastMoveRepetitions2) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
   int history_idx = history.GetLength() - 1;
   const Position& repeated_position = history.GetPositionAt(history_idx);
   EXPECT_EQ(repeated_position.GetRepetitions(), 2);
@@ -89,11 +89,11 @@ TEST(PositionHistory, DidRepeatSinceLastZeroingMoveCurent) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
-  history.Append(Move("g6h6", true));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
@@ -102,12 +102,12 @@ TEST(PositionHistory, DidRepeatSinceLastZeroingMoveBefore) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6rC1/9/9/9/5R3/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6h6", true));
-  history.Append(Move("f2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("f2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
@@ -116,14 +116,14 @@ TEST(PositionHistory, DidRepeatSinceLastZeroingMoveOlder) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6rC1/9/9/9/5R3/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6b6", true));
-  history.Append(Move("f2b2", false));
-  history.Append(Move("b6h6", true));
-  history.Append(Move("b2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6b6"));
+  history.Append(history.Last().GetBoard().ParseMove("f2b2"));
+  history.Append(history.Last().GetBoard().ParseMove("b6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("b2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
   EXPECT_TRUE(history.DidRepeatSinceLastZeroingMove());
 }
 
@@ -132,12 +132,12 @@ TEST(PositionHistory, DidRepeatSinceLastZeroingMoveBeforeZero) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6f6", true));
-  history.Append(Move("g2f2", false));
-  history.Append(Move("f6g6", true));
-  history.Append(Move("f2g2", false));
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6f6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2f2"));
+  history.Append(history.Last().GetBoard().ParseMove("f6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("f2g2"));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
   EXPECT_FALSE(history.DidRepeatSinceLastZeroingMove());
 }
 
@@ -146,8 +146,8 @@ TEST(PositionHistory, DidRepeatSinceLastZeroingMoveNeverRepeated) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6rC1/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6c6", true));
-  history.Append(Move("g2f2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6c6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2f2"));
   EXPECT_FALSE(history.DidRepeatSinceLastZeroingMove());
 }
 
@@ -156,18 +156,18 @@ TEST(PositionHistory, RuleJudgeWhiteChase) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/6c2/9/9/9/6R2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g6h6", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("h6g6", true));
-  history.Append(Move("h2g2", false));
+  history.Append(history.Last().GetBoard().ParseMove("g6h6"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("h6g6"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 
   board.SetFromFen("3k5/9/9/9/9/9/9/9/1r2ARn2/4K4 b");
   history.Reset(board, 2, 30);
-  history.Append(Move("b1b0", true));
-  history.Append(Move("e1d0", false));
-  history.Append(Move("b0b1", true));
-  history.Append(Move("d0e1", false));
+  history.Append(history.Last().GetBoard().ParseMove("b1b0"));
+  history.Append(history.Last().GetBoard().ParseMove("e1d0"));
+  history.Append(history.Last().GetBoard().ParseMove("b0b1"));
+  history.Append(history.Last().GetBoard().ParseMove("d0e1"));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 }
 
@@ -176,18 +176,18 @@ TEST(PositionHistory, RuleJudgeBlackChase) {
   PositionHistory history;
   board.SetFromFen("3k5/9/7r1/9/9/9/9/6C2/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("h7g7", true));
-  history.Append(Move("g2h2", false));
-  history.Append(Move("g7h7", true));
-  history.Append(Move("h2g2", false));
+  history.Append(history.Last().GetBoard().ParseMove("h7g7"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h2"));
+  history.Append(history.Last().GetBoard().ParseMove("g7h7"));
+  history.Append(history.Last().GetBoard().ParseMove("h2g2"));
   EXPECT_EQ(history.RuleJudge(), GameResult::WHITE_WON);
 
   board.SetFromFen("1rbakabnr/9/2n6/p1p3p1p/c8/4C4/P1P1P1PcP/1C2B1N2/3N5/R2AKABR1 w");
   history.Reset(board, 2, 30);
-  history.Append(Move("a0c0", false));
-  history.Append(Move("a5c5", true));
-  history.Append(Move("c0a0", false));
-  history.Append(Move("c5a5", true));
+  history.Append(history.Last().GetBoard().ParseMove("a0c0"));
+  history.Append(history.Last().GetBoard().ParseMove("a5c5"));
+  history.Append(history.Last().GetBoard().ParseMove("c0a0"));
+  history.Append(history.Last().GetBoard().ParseMove("c5a5"));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 }
 
@@ -196,10 +196,10 @@ TEST(PositionHistory, RuleJudgeWhiteCheck) {
   PositionHistory history;
   board.SetFromFen("3k5/9/9/9/9/9/9/3R5/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("d9e9", true));
-  history.Append(Move("d2e2", false));
-  history.Append(Move("e9d9", true));
-  history.Append(Move("e2d2", false));
+  history.Append(history.Last().GetBoard().ParseMove("d9e9"));
+  history.Append(history.Last().GetBoard().ParseMove("d2e2"));
+  history.Append(history.Last().GetBoard().ParseMove("e9d9"));
+  history.Append(history.Last().GetBoard().ParseMove("e2d2"));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 }
 
@@ -208,10 +208,10 @@ TEST(PositionHistory, RuleJudgeBlackCheck) {
   PositionHistory history;
   board.SetFromFen("3k5/9/4r4/9/9/9/9/9/9/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("e7f7", true));
-  history.Append(Move("f0e0", false));
-  history.Append(Move("f7e7", true));
-  history.Append(Move("e0f0", false));
+  history.Append(history.Last().GetBoard().ParseMove("e7f7"));
+  history.Append(history.Last().GetBoard().ParseMove("f0e0"));
+  history.Append(history.Last().GetBoard().ParseMove("f7e7"));
+  history.Append(history.Last().GetBoard().ParseMove("e0f0"));
   EXPECT_EQ(history.RuleJudge(), GameResult::WHITE_WON);
 }
 
@@ -220,18 +220,18 @@ TEST(PositionHistory, RuleJudgeDraw) {
   PositionHistory history;
   board.SetFromFen("3k5/9/6r2/9/9/9/9/9/6R2/5K3 b - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("g7h7", true));
-  history.Append(Move("g1h1", false));
-  history.Append(Move("h7g7", true));
-  history.Append(Move("h1g1", false));
+  history.Append(history.Last().GetBoard().ParseMove("g7h7"));
+  history.Append(history.Last().GetBoard().ParseMove("g1h1"));
+  history.Append(history.Last().GetBoard().ParseMove("h7g7"));
+  history.Append(history.Last().GetBoard().ParseMove("h1g1"));
   EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
 
   board.SetFromFen("4c4/3k5/4b3b/9/9/2B4N1/4p4/3A5/2p1A4/5K3 w - - 2 30");
   history.Reset(board, 2, 30);
-  history.Append(Move("h4g2", false));
-  history.Append(Move("e3f3", true));
-  history.Append(Move("g2h4", false));
-  history.Append(Move("f3e3", true));
+  history.Append(history.Last().GetBoard().ParseMove("h4g2"));
+  history.Append(history.Last().GetBoard().ParseMove("e3f3"));
+  history.Append(history.Last().GetBoard().ParseMove("g2h4"));
+  history.Append(history.Last().GetBoard().ParseMove("f3e3"));
   EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
 }
 

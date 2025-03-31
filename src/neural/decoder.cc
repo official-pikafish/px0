@@ -33,12 +33,12 @@ namespace lczero {
 
 namespace {
 
-BoardSquare SingleSquare(BitBoard input) {
+Square SingleSquare(BitBoard input) {
   for (auto sq : input) {
     return sq;
   }
   assert(false);
-  return BoardSquare();
+  return Square();
 }
 
 BitBoard MaskDiffWithMirror(const InputPlane& cur, const InputPlane& prev) {
@@ -47,7 +47,7 @@ BitBoard MaskDiffWithMirror(const InputPlane& cur, const InputPlane& prev) {
   return BitBoard(cur.mask ^ to_mirror.as_int());
 }
 
-BoardSquare OldPosition(const InputPlane& prev, BitBoard mask_diff) {
+Square OldPosition(const InputPlane& prev, BitBoard mask_diff) {
   auto to_mirror = BitBoard(prev.mask);
   to_mirror.Mirror();
   return SingleSquare(to_mirror & mask_diff);
@@ -98,33 +98,34 @@ void PopulateBoard(pblczero::NetworkFormat::InputFormat input_format,
     int emptycounter = 0;
     for (int col = 0; col < 9; ++col) {
       char piece = '\0';
-      if (rooksOurs.get(row, col)) {
+      Square square(File::FromIdx(col), Rank::FromIdx(row));
+      if (rooksOurs.get(square)) {
         piece = 'R';
-      } else if (rooksTheirs.get(row, col)) {
+      } else if (rooksTheirs.get(square)) {
         piece = 'r';
-      } else if (advisorsOurs.get(row, col)) {
+      } else if (advisorsOurs.get(square)) {
         piece = 'A';
-      } else if (advisorsTheirs.get(row, col)) {
+      } else if (advisorsTheirs.get(square)) {
         piece = 'a';
-      } else if (cannonsOurs.get(row, col)) {
+      } else if (cannonsOurs.get(square)) {
         piece = 'C';
-      } else if (cannonsTheirs.get(row, col)) {
+      } else if (cannonsTheirs.get(square)) {
         piece = 'c';
-      } else if (pawnsOurs.get(row, col)) {
+      } else if (pawnsOurs.get(square)) {
         piece = 'P';
-      } else if (pawnsTheirs.get(row, col)) {
+      } else if (pawnsTheirs.get(square)) {
         piece = 'p';
-      } else if (knightsOurs.get(row, col)) {
+      } else if (knightsOurs.get(square)) {
         piece = 'N';
-      } else if (knightsTheirs.get(row, col)) {
+      } else if (knightsTheirs.get(square)) {
         piece = 'n';
-      } else if (bishopsOurs.get(row, col)) {
+      } else if (bishopsOurs.get(square)) {
         piece = 'B';
-      } else if (bishopsTheirs.get(row, col)) {
+      } else if (bishopsTheirs.get(square)) {
         piece = 'b';
-      } else if (kingOurs.get(row, col)) {
+      } else if (kingOurs.get(square)) {
         piece = 'K';
-      } else if (kingTheirs.get(row, col)) {
+      } else if (kingTheirs.get(square)) {
         piece = 'k';
       }
       if (emptycounter > 0 && piece) {
@@ -165,37 +166,37 @@ Move DecodeMoveFromInput(const InputPlanes& planes, const InputPlanes& prior) {
   if (rookdiff.count() == 2) {
     auto from = OldPosition(prior[0], rookdiff);
     auto to = SingleSquare(planes[7].mask & rookdiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (advisordiff.count() == 2) {
     auto from = OldPosition(prior[1], advisordiff);
     auto to = SingleSquare(planes[8].mask & advisordiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (cannondiff.count() == 2) {
     auto from = OldPosition(prior[2], cannondiff);
     auto to = SingleSquare(planes[9].mask & cannondiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (pawndiff.count() == 2) {
     auto from = OldPosition(prior[3], pawndiff);
     auto to = SingleSquare(planes[10].mask & pawndiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (knightdiff.count() == 2) {
     auto from = OldPosition(prior[4], knightdiff);
     auto to = SingleSquare(planes[11].mask & knightdiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (bishopdiff.count() == 2) {
     auto from = OldPosition(prior[5], bishopdiff);
     auto to = SingleSquare(planes[12].mask & bishopdiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   else if (kingdiff.count() == 2) {
     auto from = OldPosition(prior[6], kingdiff);
     auto to = SingleSquare(planes[13].mask & kingdiff.as_int());
-    return Move(from, to);
+    return Move::White(from, to);
   }
   assert(false);
   return Move();

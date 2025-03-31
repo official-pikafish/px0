@@ -23,37 +23,9 @@
 #include <iostream>
 
 #include "chess/bitboard.h"
-
 #include "utils/exception.h"
 
 namespace lczero {
-
-TEST(BoardSquare, BoardSquare) {
-  {
-    auto x = BoardSquare(ChessBoard::C1);
-    EXPECT_EQ(x.row(), 1);
-    EXPECT_EQ(x.col(), 2);
-  }
-
-  {
-    auto x = BoardSquare("c1");
-    EXPECT_EQ(x.row(), 1);
-    EXPECT_EQ(x.col(), 2);
-  }
-
-  {
-    auto x = BoardSquare(1, 2);
-    EXPECT_EQ(x.row(), 1);
-    EXPECT_EQ(x.col(), 2);
-  }
-
-  {
-    auto x = BoardSquare(1, 2);
-    x.Mirror();
-    EXPECT_EQ(x.row(), 8);
-    EXPECT_EQ(x.col(), 2);
-  }
-}
 
 TEST(ChessBoard, IllegalPawnPosition) {
   ChessBoard board;
@@ -109,26 +81,26 @@ int Perft(const ChessBoard& board, int max_depth, bool dump = false,
     new_board.ApplyMove(move);
     if (!new_board.IsLegalMove(move)) {
       if (iter != legal_moves.end()) {
-        EXPECT_NE(iter->as_packed_int(), move.as_packed_int())
-            << board.DebugString() << "legal:[" << iter->as_string()
-            << "]==pseudo:(" << move.as_string() << ") Under check:\n"
+        EXPECT_NE(*iter, move)
+            << board.DebugString() << "legal:[" << iter->ToString(true)
+            << "]==pseudo:(" << move.ToString(true) << ") Under check:\n"
             << new_board.DebugString();
       }
       continue;
     }
 
-    EXPECT_EQ(iter->as_packed_int(), move.as_packed_int())
-        << board.DebugString() << "legal:[" << iter->as_string() << "]pseudo:("
-        << move.as_string() << ") after:\n"
-        << new_board.DebugString();
+    EXPECT_EQ(*iter, move) << board.DebugString() << "legal:["
+                           << iter->ToString(true) << "]pseudo:("
+                           << move.ToString(true) << ") after:\n"
+                           << new_board.DebugString();
 
     new_board.Mirror();
     ++iter;
     int count = Perft(new_board, max_depth, dump, depth + 1);
     if (dump && depth == 0) {
       Move m = move;
-      if (board.flipped()) m.Mirror();
-      std::cerr << m.as_string() << ": " << count << '\n';
+      if (board.flipped()) m.Flip();
+      std::cerr << m.ToString(true) << ": " << count << '\n';
     }
     total_count += count;
   }
@@ -300,7 +272,6 @@ void TestInvalid(std::string fen) {
   }
 }
 }  // namespace
-
 
 TEST(ChessBoard, InvalidFEN) {
   TestInvalid("rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P2PP1P1P/1C5C1/9/RNBAKABNR w");

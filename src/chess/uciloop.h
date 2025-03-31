@@ -54,7 +54,7 @@ struct GoParams {
 
 class UciLoop {
  public:
-  virtual ~UciLoop() {}
+  virtual ~UciLoop() = default;
   virtual void RunLoop();
 
   // Sends response to host.
@@ -85,6 +85,9 @@ class UciLoop {
   virtual void CmdStop() { throw Exception("Not supported"); }
   virtual void CmdPonderHit() { throw Exception("Not supported"); }
   virtual void CmdStart() { throw Exception("Not supported"); }
+
+  // Temporary hack until old engine controller is gone.
+  virtual bool IsChess960() const = 0;
 
  private:
   bool DispatchCommand(

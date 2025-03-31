@@ -108,6 +108,7 @@ SelfPlayGame::SelfPlayGame(PlayerOptions white, PlayerOptions black,
                                       exit_prob_next * (positions / 2)))) {
       break;
     }
+    if (tree_[0]->IsBlackToMove()) m.Flip();
     tree_[0]->MakeMove(m);
     if (tree_[0] != tree_[1]) tree_[1]->MakeMove(m);
     ply++;
@@ -232,9 +233,7 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
       }
       PositionHistory history_copy = tree_[idx]->GetPositionHistory();
       Move move_for_history = move;
-      if (tree_[idx]->IsBlackToMove()) {
-        move_for_history.Mirror();
-      }
+      if (tree_[idx]->IsBlackToMove()) move_for_history.Flip();
       history_copy.Append(move_for_history);
       // Ensure not to discard games that are already decided.
       if (history_copy.ComputeGameResult() == GameResult::UNDECIDED) {
@@ -277,6 +276,7 @@ void SelfPlayGame::Play(int white_threads, int black_threads, bool training,
     search_.reset();
 
     // Add best move to the tree.
+    if (tree_[0]->IsBlackToMove()) move.Flip();
     tree_[0]->MakeMove(move);
     if (tree_[0] != tree_[1]) tree_[1]->MakeMove(move);
     blacks_move = !blacks_move;
@@ -296,7 +296,7 @@ std::vector<Move> SelfPlayGame::GetMoves() const {
     moves.pop_back();
     pos = Position(pos, move);
     // Position already flipped, therefore flip the move if white to move.
-    if (!pos.IsBlackToMove()) move.Mirror();
+    if (!pos.IsBlackToMove()) move.Flip();
     result.push_back(move);
   }
   return result;

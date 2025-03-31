@@ -43,7 +43,6 @@ class RescoreLoop : public UciLoop {
 
  private:
   OptionsParser options_;
-
 };
 
 }  // namespace lczero

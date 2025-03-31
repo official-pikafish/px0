@@ -33,6 +33,7 @@
 #include <cctype>
 #include <cerrno>
 #include <fstream>
+#include <optional>
 
 #include "chess/bitboard.h"
 #include "chess/board.h"
@@ -77,7 +78,7 @@ class PgnReader {
     while (GzGetLine(file, line)) {
       // Check if we have a UTF-8 BOM. If so, just ignore it.
       // Only supposed to exist in the first line, but should not matter.
-      if (line.substr(0,3) == "\xEF\xBB\xBF") line = line.substr(3);
+      if (line.substr(0, 3) == "\xEF\xBB\xBF") line = line.substr(3);
       if (!line.empty() && line.back() == '\r') line.pop_back();
       // TODO: support line breaks in tags to ensure they are properly ignored.
       if (line.empty() || line[0] == '[') {
@@ -151,9 +152,7 @@ class PgnReader {
         // Board ApplyMove wants mirrored for black, but outside code wants
         // normal, so mirror it back again.
         // Check equal to 0 since we've already added the position.
-        if ((cur_game_.size() % 2) == 0) {
-          cur_game_.back().Mirror();
-        }
+        if ((cur_game_.size() % 2) == 0) cur_game_.back().Flip();
         cur_board_.Mirror();
       }
     }
@@ -237,20 +236,20 @@ class PgnReader {
       auto plm = board.GenerateLegalMoves();
       int pr1 = -1;
       int pc1 = -1;
-      for (BoardSquare sq : searchBits) {
-        if (sr1 != -1 && sq.row() != sr1) continue;
-        if (c1 != -1 && sq.col() != c1) continue;
-        if (std::find(plm.begin(), plm.end(),
-                      Move(sq, BoardSquare(sr2, c2))) ==
-            plm.end()) {
+      for (Square sq : searchBits) {
+        if (sr1 != -1 && sq.rank().idx != sr1) continue;
+        if (c1 != -1 && sq.file().idx != c1) continue;
+        Square to(File::FromIdx(c2), Rank::FromIdx(sr2));
+        Move move_to_find = Move::White(sq, to);
+        if (std::find(plm.begin(), plm.end(), move_to_find) == plm.end()) {
           continue;
         }
         if (pc1 != -1) {
           CERR << "Ambiguous!!";
           throw Exception("Opening book move seems ambiguous.");
         }
-        pr1 = sq.row();
-        pc1 = sq.col();
+        pr1 = sq.rank().idx;
+        pc1 = sq.file().idx;
       }
       if (pc1 == -1) {
         CERR << "No Match!!";
@@ -262,8 +261,10 @@ class PgnReader {
         r1 = 9 - r1;
       }
     }
-    Move m(BoardSquare(r1, c1), BoardSquare(r2, c2));
-    if (board.flipped()) m.Mirror();
+    Square from(File::FromIdx(c1), Rank::FromIdx(r1));
+    Square to(File::FromIdx(c2), Rank::FromIdx(r2));
+    Move m = Move::White(from, to);
+    if (board.flipped()) m.Flip();
     return m;
   }
 
