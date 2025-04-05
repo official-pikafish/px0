@@ -34,15 +34,6 @@
 
 namespace lczero {
 
-class RescoreLoop : public UciLoop {
- public:
-  RescoreLoop();
-  ~RescoreLoop();
-
-  void RunLoop() override;
-
- private:
-  OptionsParser options_;
-};
+void RunRescorer();
 
 }  // namespace lczero

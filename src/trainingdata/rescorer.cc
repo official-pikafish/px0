@@ -25,7 +25,7 @@
   Program grant you additional permission to convey the resulting work.
 */
 
-#include "trainingdata/rescoreloop.h"
+#include "trainingdata/rescorer.h"
 
 #include <optional>
 #include <sstream>
@@ -680,56 +680,53 @@ void BuildSubs(const std::vector<std::string>& files) {
 
 }  // namespace
 
-RescoreLoop::RescoreLoop() {}
-
-RescoreLoop::~RescoreLoop() {}
-
 #ifdef _WIN32
 #define SEP_CHAR ';'
 #else
 #define SEP_CHAR ':'
 #endif
 
-void RescoreLoop::RunLoop() {
+void RunRescorer() {
+  OptionsParser options;
   orig_counts[0] = 0;
   orig_counts[1] = 0;
   orig_counts[2] = 0;
   fixed_counts[0] = 0;
   fixed_counts[1] = 0;
   fixed_counts[2] = 0;
-  options_.Add<StringOption>(kInputDirId);
-  options_.Add<StringOption>(kOutputDirId);
-  options_.Add<StringOption>(kPolicySubsDirId);
-  options_.Add<IntOption>(kThreadsId, 1, 20) = 1;
-  options_.Add<FloatOption>(kTempId, 0.001, 100) = 1;
+  options.Add<StringOption>(kInputDirId);
+  options.Add<StringOption>(kOutputDirId);
+  options.Add<StringOption>(kPolicySubsDirId);
+  options.Add<IntOption>(kThreadsId, 1, 20) = 1;
+  options.Add<FloatOption>(kTempId, 0.001, 100) = 1;
   // Positive dist offset requires knowing the legal move set, so not supported
   // for now.
-  options_.Add<FloatOption>(kDistributionOffsetId, -0.999, 0) = 0;
-  options_.Add<IntOption>(kNewInputFormatId, -1, 256) = -1;
-  options_.Add<BoolOption>(kDeblunder) = false;
-  options_.Add<FloatOption>(kDeblunderQBlunderThreshold, 0.0f, 2.0f) = 2.0f;
-  options_.Add<FloatOption>(kDeblunderQBlunderWidth, 0.0f, 2.0f) = 0.0f;
-  options_.Add<StringOption>(kNnuePlainFileId);
-  options_.Add<BoolOption>(kNnueBestScoreId) = true;
-  options_.Add<BoolOption>(kNnueBestMoveId) = false;
-  options_.Add<BoolOption>(kDeleteFilesId) = true;
+  options.Add<FloatOption>(kDistributionOffsetId, -0.999, 0) = 0;
+  options.Add<IntOption>(kNewInputFormatId, -1, 256) = -1;
+  options.Add<BoolOption>(kDeblunder) = false;
+  options.Add<FloatOption>(kDeblunderQBlunderThreshold, 0.0f, 2.0f) = 2.0f;
+  options.Add<FloatOption>(kDeblunderQBlunderWidth, 0.0f, 2.0f) = 0.0f;
+  options.Add<StringOption>(kNnuePlainFileId);
+  options.Add<BoolOption>(kNnueBestScoreId) = true;
+  options.Add<BoolOption>(kNnueBestMoveId) = false;
+  options.Add<BoolOption>(kDeleteFilesId) = true;
 
-  if (!options_.ProcessAllFlags()) return;
+  if (!options.ProcessAllFlags()) return;
 
-  if (options_.GetOptionsDict().IsDefault<std::string>(kOutputDirId) &&
-      options_.GetOptionsDict().IsDefault<std::string>(kNnuePlainFileId)) {
+  if (options.GetOptionsDict().IsDefault<std::string>(kOutputDirId) &&
+      options.GetOptionsDict().IsDefault<std::string>(kNnuePlainFileId)) {
     std::cerr << "Must provide an output dir or NNUE plain file." << std::endl;
     return;
   }
 
-  deblunderEnabled = options_.GetOptionsDict().Get<bool>(kDeblunder);
+  deblunderEnabled = options.GetOptionsDict().Get<bool>(kDeblunder);
   deblunderQBlunderThreshold =
-      options_.GetOptionsDict().Get<float>(kDeblunderQBlunderThreshold);
+      options.GetOptionsDict().Get<float>(kDeblunderQBlunderThreshold);
   deblunderQBlunderWidth =
-      options_.GetOptionsDict().Get<float>(kDeblunderQBlunderWidth);
+      options.GetOptionsDict().Get<float>(kDeblunderQBlunderWidth);
 
   auto policySubsDir =
-      options_.GetOptionsDict().Get<std::string>(kPolicySubsDirId);
+      options.GetOptionsDict().Get<std::string>(kPolicySubsDirId);
   if (policySubsDir.size() != 0) {
     auto policySubFiles = GetFileList(policySubsDir);
     for (size_t i = 0; i < policySubFiles.size(); i++) {
@@ -738,7 +735,7 @@ void RescoreLoop::RunLoop() {
     BuildSubs(policySubFiles);
   }
 
-  auto inputDir = options_.GetOptionsDict().Get<std::string>(kInputDirId);
+  auto inputDir = options.GetOptionsDict().Get<std::string>(kInputDirId);
   if (inputDir.size() == 0) {
     std::cerr << "Must provide an input dir." << std::endl;
     return;
@@ -751,26 +748,25 @@ void RescoreLoop::RunLoop() {
   for (size_t i = 0; i < files.size(); i++) {
     files[i] = inputDir + "/" + files[i];
   }
-  unsigned int threads = options_.GetOptionsDict().Get<int>(kThreadsId);
+  unsigned int threads = options.GetOptionsDict().Get<int>(kThreadsId);
   ProcessFileFlags flags;
-  flags.delete_files = options_.GetOptionsDict().Get<bool>(kDeleteFilesId);
-  flags.nnue_best_score = options_.GetOptionsDict().Get<bool>(kNnueBestScoreId);
-  flags.nnue_best_move = options_.GetOptionsDict().Get<bool>(kNnueBestMoveId);
+  flags.delete_files = options.GetOptionsDict().Get<bool>(kDeleteFilesId);
+  flags.nnue_best_score = options.GetOptionsDict().Get<bool>(kNnueBestScoreId);
+  flags.nnue_best_move = options.GetOptionsDict().Get<bool>(kNnueBestMoveId);
   if (threads > 1) {
     std::vector<std::thread> threads_;
     int offset = 0;
     while (threads_.size() < threads) {
       int offset_val = offset;
       offset++;
-      threads_.emplace_back([this, offset_val, files, threads, flags]() {
+      threads_.emplace_back([&options, offset_val, files, threads, flags]() {
         ProcessFiles(
             files, options_.GetOptionsDict().Get<std::string>(kOutputDirId),
-            options_.GetOptionsDict().Get<float>(kTempId),
-            options_.GetOptionsDict().Get<float>(kDistributionOffsetId),
-            options_.GetOptionsDict().Get<int>(kNewInputFormatId), offset_val,
+            options.GetOptionsDict().Get<float>(kTempId),
+            options.GetOptionsDict().Get<float>(kDistributionOffsetId),
+            options.GetOptionsDict().Get<int>(kNewInputFormatId), offset_val,
             threads,
-            options_.GetOptionsDict().Get<std::string>(kNnuePlainFileId),
-            flags);
+            options.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags);
       });
     }
     for (size_t i = 0; i < threads_.size(); i++) {
@@ -780,10 +776,10 @@ void RescoreLoop::RunLoop() {
   } else {
     ProcessFiles(
         files, options_.GetOptionsDict().Get<std::string>(kOutputDirId),
-        options_.GetOptionsDict().Get<float>(kTempId),
-        options_.GetOptionsDict().Get<float>(kDistributionOffsetId),
-        options_.GetOptionsDict().Get<int>(kNewInputFormatId), 0, 1,
-        options_.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags);
+        options.GetOptionsDict().Get<float>(kTempId),
+        options.GetOptionsDict().Get<float>(kDistributionOffsetId),
+        options.GetOptionsDict().Get<int>(kNewInputFormatId), 0, 1,
+        options.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags);
   }
   std::cout << "Games processed: " << games << std::endl;
   std::cout << "Positions processed: " << positions << std::endl;
