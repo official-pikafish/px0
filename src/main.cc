@@ -108,12 +108,7 @@ int main(int argc, const char** argv) {
           used_new_search = true;
           SearchFactory* factory =
               SearchManager::Get()->GetFactoryByName(search_name);
-          factory->PopulateParams(options_parser.get());
-          StdoutUciResponder uci_responder;
-          EngineLoop loop(&uci_responder, options_parser.get(),
-                          std::make_unique<Engine>(
-                              *factory, options_parser->GetOptionsDict()));
-          loop.RunLoop();
+          RunEngine(factory);
         }
       }
 
@@ -121,12 +116,7 @@ int main(int argc, const char** argv) {
         // Consuming optional "uci" mode.
         CommandLine::ConsumeCommand("uci");
         // Ordinary UCI engine.
-        EngineClassic::PopulateOptions(options_parser.get());
-        StdoutUciResponder uci_responder;
-        EngineLoop loop(
-            &uci_responder, options_parser.get(),
-            std::make_unique<EngineClassic>(options_parser->GetOptionsDict()));
-        loop.RunLoop();
+        RunEngineClassic();
       }
     }
   } catch (std::exception& e) {
