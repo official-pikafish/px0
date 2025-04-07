@@ -58,9 +58,10 @@ class Engine : public EngineControllerBase {
 
   UciResponderForwarder uci_forwarder_;
   const OptionsDict& options_;
-  std::unique_ptr<SearchBase> search_;
+  std::unique_ptr<SearchBase> search_;  // absl_notnull
   std::string backend_name_;
-  std::unique_ptr<CachingBackend> backend_;
+  std::unique_ptr<CachingBackend> backend_;  // absl_nullable
+
   bool search_initialized_ = false;
 };
 

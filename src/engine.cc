@@ -108,9 +108,7 @@ void Engine::Go(const GoParams& params) {
   search_->StartSearch(params);
 }
 
-void Engine::Stop() {
-  if (search_) search_->StopSearch();
-}
+void Engine::Stop() { search_->StopSearch(); }
 
 void Engine::RegisterUciResponder(UciResponder* responder) {
   uci_forwarder_.Register(responder);
