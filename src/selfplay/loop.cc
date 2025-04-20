@@ -92,7 +92,7 @@ void SelfPlayLoop::SendGameInfo(const GameInfo& info) {
   }
   if (!info.moves.empty()) {
     res += " moves";
-    for (const auto& move : info.moves) res += " " + move.ToString(true);
+    for (const auto& move : info.moves) res += " " + move.ToString();
   }
   if (!info.initial_fen.empty() &&
       info.initial_fen != ChessBoard::kStartposFen) {

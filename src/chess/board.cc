@@ -498,12 +498,11 @@ static void BuildAttacksTable(MagicParams* magic_params,
     const Square b_sq = Square::FromIdx(square);
 
     // Board edges are not considered in the relevant occupancies
-    BitBoard edges = ((Rank0BB | Rank9BB) - RankBB(b_sq.rank())) | ((FileABB | FileIBB) - FileBB(b_sq.file()));
+    BitBoard edges = ((Rank0BB | Rank9BB) - RankBB(b_sq.rank().idx)) | ((FileABB | FileIBB) - FileBB(b_sq.file().idx));
 
     // Calculate relevant occupancy masks.
     BitBoard mask = pt == kRook   ? SlidingAttack<pt>(b_sq, BitBoard(0)) :
-                    pt == kCannon ? rook_magic_params[square].mask_ :
-                                    LameLeaperPath<pt>(square);
+                    pt == kCannon ? rook_magic_params[square].mask_ : LameLeaperPath<pt>(b_sq);
     if (pt != kKnightTo)
       mask -= edges;
 
@@ -677,14 +676,14 @@ MoveList ChessBoard::GeneratePseudolegalMoves() const {
     // Rook
     if (rooks_.get(source)) {
       for (const auto& destination : GetAttacks<kRook>(source, our_pieces_ | their_pieces_) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
     // Advisor
     if (advisors_.get(source)) {
       for (const auto& destination : GetAttacks<kAdvisor>(source) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
@@ -697,35 +696,35 @@ MoveList ChessBoard::GeneratePseudolegalMoves() const {
       // Capture
       attacks |= GetAttacks<kCannon>(source, our_pieces_ | their_pieces_) & their_pieces_;
       for (const auto& destination : attacks) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
     // Pawns.
     if (pawns_.get(source)) {
       for (const auto& destination : GetAttacks<kPawn>(source) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
     // Knight
     if (knights_.get(source)) {
       for (const auto& destination : GetAttacks<kKnight>(source, our_pieces_ | their_pieces_) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
     // Bishop
     if (bishops_.get(source)) {
       for (const auto& destination : GetAttacks<kBishop>(source, our_pieces_ | their_pieces_) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }
     // King
     if (source == our_king_) {
       for (const auto& destination : GetAttacks<kKing>(source) - our_pieces_) {
-        result.emplace_back(source, destination);
+        result.emplace_back(Move::White(source, destination));
       }
       continue;
     }

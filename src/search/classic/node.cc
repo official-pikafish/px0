@@ -177,7 +177,7 @@ float Edge::GetP() const {
 
 std::string Edge::DebugString() const {
   std::ostringstream oss;
-  oss << "Move: " << move_.ToString(true) << " p_: " << p_
+  oss << "Move: " << move_.ToString() << " p_: " << p_
       << " GetP: " << GetP();
   return oss.str();
 }

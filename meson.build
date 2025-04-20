@@ -504,7 +504,7 @@ if get_option('build_backends')
       cuda_arguments += ['-ccbin=' + get_option('nvcc_ccbin')]
     endif
     cuda_cc = get_option('cc_cuda') # Unfortunately option cuda_cc is reserved.
-    nvcc_extra_args = ['--expt-relaxed-constexpr']
+    nvcc_extra_args = ['--expt-relaxed-constexpr', '-std=c++20']
     if cuda_cc != ''
       nvcc_extra_args += ['-arch=compute_' + cuda_cc, '-code=sm_' + cuda_cc]
     elif get_option('native_cuda') and nvcc_help.contains('-arch=native')

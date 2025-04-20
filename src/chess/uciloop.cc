@@ -226,12 +226,8 @@ bool UciLoop::ProcessLine(const std::string& line) {
 }
 
 void StringUciResponder::PopulateParams(OptionsParser* options) {
-<<<<<<< HEAD
-=======
-  options->Add<BoolOption>(kUciChess960) = false;
   options->Add<BoolOption>(kShowWDL) = true;
   options->Add<BoolOption>(kShowMovesleft) = false;
->>>>>>> 688a64b (Move Show_WDL and Show_MLH params to the UciResponder (#2144))
   options_ = &options->GetOptionsDict();
 }
 

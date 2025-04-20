@@ -136,7 +136,6 @@ Engine::Engine(const SearchFactory& factory, const OptionsDict& opts)
       search_(factory.CreateSearch(uci_forwarder_.get(), &options_)) {
   if (options_.Get<bool>(kPreload)) {
     UpdateBackendConfig();
-    EnsureSyzygyTablebasesLoaded();
   }
 }
 
