@@ -43,7 +43,7 @@ int ChooseTransform(const ChessBoard& board) {
 
   if ((board.kings() & board.ours()).intersects(RightFlankBB))
     return FlipTransform;
-  else if ((board.kings() & board.ours()).intersects(FileEBB))
+  else if ((board.kings() & board.ours()).intersects(FileEBB)) {
     if ((board.kings() & board.theirs()).intersects(RightFlankBB))
       return FlipTransform;
     else if ((board.kings() & board.theirs()).intersects(FileEBB)) {
@@ -84,6 +84,7 @@ int ChooseTransform(const ChessBoard& board) {
           return FlipTransform;
       }
     }
+  }
   return NoTransform;
 }
 }  // namespace
