@@ -161,14 +161,6 @@ TEST(PositionHistory, RuleJudgeWhiteChase) {
   history.Append(history.Last().GetBoard().ParseMove("h6g6"));
   history.Append(history.Last().GetBoard().ParseMove("h2g2"));
   EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
-
-  board.SetFromFen("3k5/9/9/9/9/9/9/9/1r2ARn2/4K4 b");
-  history.Reset(board, 2, 30);
-  history.Append(history.Last().GetBoard().ParseMove("b1b0"));
-  history.Append(history.Last().GetBoard().ParseMove("e1d0"));
-  history.Append(history.Last().GetBoard().ParseMove("b0b1"));
-  history.Append(history.Last().GetBoard().ParseMove("d0e1"));
-  EXPECT_EQ(history.RuleJudge(), GameResult::BLACK_WON);
 }
 
 TEST(PositionHistory, RuleJudgeBlackChase) {
@@ -232,6 +224,14 @@ TEST(PositionHistory, RuleJudgeDraw) {
   history.Append(history.Last().GetBoard().ParseMove("e3f3"));
   history.Append(history.Last().GetBoard().ParseMove("g2h4"));
   history.Append(history.Last().GetBoard().ParseMove("f3e3"));
+  EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
+
+  board.SetFromFen("3k5/9/9/9/9/9/9/9/1r2ARn2/4K4 b");
+  history.Reset(board, 2, 30);
+  history.Append(history.Last().GetBoard().ParseMove("b1b0"));
+  history.Append(history.Last().GetBoard().ParseMove("e1d0"));
+  history.Append(history.Last().GetBoard().ParseMove("b0b1"));
+  history.Append(history.Last().GetBoard().ParseMove("d0e1"));
   EXPECT_EQ(history.RuleJudge(), GameResult::DRAW);
 }
 

@@ -110,7 +110,7 @@ TEST_F(EngineTest, BackendReloadByUpdateBackendConfig) {
   EXPECT_EQ(backend_, nullptr);  // Backend not created before the search.
   EXPECT_CALL(*search_, StartSearch(_)).WillRepeatedly([&](const GoParams&) {
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    static BestMoveInfo bestmove_info(Move::White(kSquareE1, kSquareA1));
+    static BestMoveInfo bestmove_info(Move::White(kSquareE0, kSquareA0));
     search_->GetUciResponder()->OutputBestMove(&bestmove_info);
   });
   engine.Go(GoParams{.nodes = 10});

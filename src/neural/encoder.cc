@@ -34,11 +34,57 @@ namespace lczero {
 namespace {
 
 int ChooseTransform(const ChessBoard& board) {
-  auto our_king = uint64_t((board.kings() & board.ours()).as_int());
-  int transform = NoTransform;
-  if ((our_king & 0x783C1E0F0783C1E0ULL) != 0) transform |= FlipTransform;
-  // Our king is now always in left side of the palace.
-  return transform;
+  constexpr BitBoard LeftFlankBB =
+      __uint128_t(0x1E0F07ULL) << 64 | __uint128_t(0x83C1E0F0783C1E0FULL);
+  constexpr BitBoard FileEBB =
+      __uint128_t(0x201008ULL) << 64 | __uint128_t(0x402010080402010ULL);
+  constexpr BitBoard RightFlankBB =
+      __uint128_t(0x3C1E0F0ULL) << 64 | __uint128_t(0x783C1E0F0783C1E0ULL);
+
+  if ((board.kings() & board.ours()).intersects(RightFlankBB))
+    return FlipTransform;
+  else if ((board.kings() & board.ours()).intersects(FileEBB))
+    if ((board.kings() & board.theirs()).intersects(RightFlankBB))
+      return FlipTransform;
+    else if ((board.kings() & board.theirs()).intersects(FileEBB)) {
+      auto mirror_test = [&](const BitBoard& bb) {
+        int count = (bb & LeftFlankBB).count_few();
+        count -= (bb & RightFlankBB).count_few();
+        int result = (count > 0) - (count < 0);
+        if (result != 0) return result;
+
+        count = 0;
+        for (const auto& sq : bb) {
+          Rank r = sq.rank();
+          File f = sq.file();
+          if (f > kFileE) {
+            f.Flop();
+            Square sq_ = Square(f, r);
+            count -= sq_.as_idx();
+          } else if (f < kFileE) {
+            Square sq_ = Square(f, r);
+            count += sq_.as_idx();
+          }
+        }
+        result = (count > 0) - (count < 0);
+        return result;
+      };
+
+      for (const auto& bb : {board.advisors(), board.bishops(), board.pawns(),
+                             board.knights(), board.cannons(), board.rooks()}) {
+        int cur = mirror_test(bb & board.ours());
+        if (cur > 0)
+          return NoTransform;
+        else if (cur < 0)
+          return FlipTransform;
+        cur = mirror_test(bb & board.theirs());
+        if (cur > 0)
+          return NoTransform;
+        else if (cur < 0)
+          return FlipTransform;
+      }
+    }
+  return NoTransform;
 }
 }  // namespace
 

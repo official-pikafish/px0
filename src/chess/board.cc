@@ -982,7 +982,7 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
       complain((piece == kAdvisor ? "advisor" : "king") +
                std::string(" not in palace"));
     else if (piece == kPawn &&
-             (BitBoard::FromSquare(sq) - PawnBB[std::islower(c)]).count_few())
+      (BitBoard::FromSquare(sq) - PawnBB[bool(std::islower(c))]).count_few())
       complain("pawn in wrong place");
     else if (piece == kBishop &&
              (BitBoard::FromSquare(sq) - BishopBB).count_few())
@@ -992,6 +992,13 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
     ++file;
   }
   if (skip_whitespace("after the board")) return;
+
+  // Setup id_board
+  uint8_t our = 0;
+  uint8_t their = 0;
+  for (const auto& sq : our_pieces_ | their_pieces_) {
+    id_board_[sq.as_idx()] = our_pieces_.get(sq) ? our++ : their++;
+  }
 
   // Parsing side to move.
   const char side_to_move = std::tolower(fen[pos++]);
@@ -1027,13 +1034,6 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
   // Parse total moves.
   parse_int(moves, "bad total moves");
   if (!skip_whitespace("after total moves")) complain("extra characters");
-
-  // Setup id_board
-  uint8_t our = 0;
-  uint8_t their = 0;
-  for (const auto& sq : our_pieces_ | their_pieces_) {
-    id_board_[sq.as_idx()] = our_pieces_.get(sq) ? our++ : their++;
-  }
 }
 
 bool ChessBoard::HasMatingMaterial() const {

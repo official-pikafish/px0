@@ -82,16 +82,16 @@ int Perft(const ChessBoard& board, int max_depth, bool dump = false,
     if (!new_board.IsLegalMove(move)) {
       if (iter != legal_moves.end()) {
         EXPECT_NE(*iter, move)
-            << board.DebugString() << "legal:[" << iter->ToString(true)
-            << "]==pseudo:(" << move.ToString(true) << ") Under check:\n"
+            << board.DebugString() << "legal:[" << iter->ToString()
+            << "]==pseudo:(" << move.ToString() << ") Under check:\n"
             << new_board.DebugString();
       }
       continue;
     }
 
     EXPECT_EQ(*iter, move) << board.DebugString() << "legal:["
-                           << iter->ToString(true) << "]pseudo:("
-                           << move.ToString(true) << ") after:\n"
+                           << iter->ToString() << "]pseudo:("
+                           << move.ToString() << ") after:\n"
                            << new_board.DebugString();
 
     new_board.Mirror();
@@ -100,7 +100,7 @@ int Perft(const ChessBoard& board, int max_depth, bool dump = false,
     if (dump && depth == 0) {
       Move m = move;
       if (board.flipped()) m.Flip();
-      std::cerr << m.ToString(true) << ": " << count << '\n';
+      std::cerr << m.ToString() << ": " << count << '\n';
     }
     total_count += count;
   }
