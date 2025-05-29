@@ -306,7 +306,7 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
   bool filtered = p.GetBoard().IsUnderCheck() ||
                   p.GetBoard().theirs().get(best.to());
   std::ostringstream out;
-  out << "fen " << GetFen(p) << std::endl;
+  out << "fen " << PositionToFen(p) << std::endl;
   if (p.IsBlackToMove()) best.Flip(), played.Flip();
   out << "move " << (flags.nnue_best_move ? best.ToString() : played.ToString())
       << std::endl;

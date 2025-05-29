@@ -1108,47 +1108,7 @@ bool ChessBoard::HasMatingMaterial() const {
 }
 
 std::string ChessBoard::DebugString() const {
-  std::string result;
-  for (int i = 9; i >= 0; --i) {
-    for (int j = 0; j < 9; ++j) {
-      File file = File::FromIdx(j);
-      Square square(file, Rank::FromIdx(i));
-      if (!our_pieces_.get(square) && !their_pieces_.get(square)) {
-        result += '.';
-        continue;
-      }
-      if (our_king_ == square) {
-        result += 'K';
-        continue;
-      }
-      if (their_king_ == square) {
-        result += 'k';
-        continue;
-      }
-      char c = '?';
-      if (rooks_.get(square)) {
-        c = 'r';
-      } else if (advisors_.get(square)) {
-        c = 'a';
-      } else if (cannons_.get(square)) {
-        c = 'c';
-      } else if (pawns_.get(square)) {
-        c = 'p';
-      } else if (knights_.get(square)) {
-        c = 'n';
-      } else if (bishops_.get(square)) {
-        c = 'b';
-      }
-      if (our_pieces_.get(square)) c = std::toupper(c);
-      result += c;
-    }
-    if (i == 0) {
-      result += flipped_ ? " (from black's eyes)" : " (from white's eyes)";
-      result += " Hash: " + std::to_string(Hash());
-    }
-    result += '\n';
-  }
-  return result;
+  return "https://xiangqiai.com/#/" + BoardToFen(*this);
 }
 
 
@@ -1174,6 +1134,59 @@ std::string ChessBoard::DebugString() const {
   Square to(to_file, to_rank);
   if (!our_pieces_.get(from)) complain("no piece to move");
   return Move::White(from, to);
+}
+
+namespace {
+char GetPieceAt(const lczero::ChessBoard& board, Square square) {
+  char c = '\0';
+  if (board.ours().get(square) || board.theirs().get(square)) {
+    if (board.rooks().get(square)) {
+      c = 'R';
+    } else if (board.advisors().get(square)) {
+      c = 'A';
+    } else if (board.cannons().get(square)) {
+      c = 'C';
+    } else if (board.pawns().get(square)) {
+      c = 'P';
+    } else if (board.knights().get(square)) {
+      c = 'N';
+    } else if (board.bishops().get(square)) {
+      c = 'B';
+    } else if (board.kings().get(square)) {
+      c = 'K';
+    }
+    if (board.theirs().get(square)) {
+      c = std::tolower(c);  // Capitals are for white.
+    }
+  }
+  return c;
+}
+
+}  // namespace
+
+std::string BoardToFen(const ChessBoard& in_board) {
+  ChessBoard board(in_board);
+  const bool black_to_move = board.flipped();
+  if (black_to_move) board.Mirror();
+  std::string result;
+  for (Rank rank = kRank9; rank.IsValid(); --rank) {
+    int empty = 0;
+    for (File file = kFileA; file <= kFileI; ++file) {
+      Square square(file, rank);
+      char piece = GetPieceAt(board, square);
+      if (piece) {
+        if (empty) result += std::to_string(empty);
+        empty = 0;
+        result += piece;
+      } else {
+        ++empty;
+      }
+    }
+    if (empty) result += std::to_string(empty);
+    if (rank != kRank1) result += '/';
+  }
+  result += black_to_move ? " b" : " w";
+  return result;
 }
 
 }  // namespace lczero

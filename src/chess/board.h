@@ -155,4 +155,7 @@ class ChessBoard {
   uint8_t id_board_[90];
 };
 
+// Converts the board to FEN string.
+std::string BoardToFen(const ChessBoard& board);
+
 }  // namespace lczero

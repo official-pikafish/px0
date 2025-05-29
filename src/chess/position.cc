@@ -28,6 +28,7 @@
 #include "chess/position.h"
 #include "utils/exception.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <cstdlib>
@@ -36,35 +37,6 @@
 #include "chess/types.h"
 
 namespace lczero {
-namespace {
-// GetPieceAt returns the piece found at row, col on board or the null-char '\0'
-// in case no piece there.
-char GetPieceAt(const lczero::ChessBoard& board, int row, int col) {
-  char c = '\0';
-  const Square square(File::FromIdx(col), Rank::FromIdx(row));
-  if (board.ours().get(square) || board.theirs().get(square)) {
-    if (board.rooks().get(square)) {
-      c = 'R';
-    } else if (board.advisors().get(square)) {
-      c = 'A';
-    } else if (board.cannons().get(square)) {
-      c = 'C';
-    } else if (board.pawns().get(square)) {
-      c = 'P';
-    } else if (board.knights().get(square)) {
-      c = 'N';
-    } else if (board.bishops().get(square)) {
-      c = 'B';
-    } else if (board.kings().get(square)) {
-      c = 'K';
-    }
-    if (board.theirs().get(square)) {
-      c = std::tolower(c);  // Capitals are for white.
-    }
-  }
-  return c;
-}
-}  // namespace
 
 Position::Position(const Position& parent, Move m)
     : us_board_(parent.us_board_),
@@ -102,7 +74,10 @@ uint64_t Position::Hash() const {
   return HashCat({us_board_.Hash(), static_cast<unsigned long>(repetitions_)});
 }
 
-std::string Position::DebugString() const { return us_board_.DebugString(); }
+std::string Position::DebugString() const {
+  std::string fen = PositionToFen(*this);
+  return "https://xiangqiai.com/#/" + fen;
+}
 
 GameResult operator-(const GameResult& res) {
   return res == GameResult::BLACK_WON   ? GameResult::WHITE_WON
@@ -229,29 +204,9 @@ uint64_t PositionHistory::HashLast(int positions) const {
   return HashCat(hash, Last().GetRule50Ply());
 }
 
-std::string GetFen(const Position& pos) {
-  std::string result;
-  ChessBoard board = pos.GetBoard();
-  if (board.flipped()) board.Mirror();
-  for (int row = 9; row >= 0; --row) {
-    int emptycounter = 0;
-    for (int col = 0; col < 9; ++col) {
-      char piece = GetPieceAt(board, row, col);
-      if (emptycounter > 0 && piece) {
-        result += std::to_string(emptycounter);
-        emptycounter = 0;
-      }
-      if (piece) {
-        result += piece;
-      } else {
-        emptycounter++;
-      }
-    }
-    if (emptycounter > 0) result += std::to_string(emptycounter);
-    if (row > 0) result += "/";
-  }
-  result += pos.IsBlackToMove() ? " b" : " w";
-  result += " - - " + std::to_string(pos.GetRule50Ply());
+std::string PositionToFen(const Position& pos) {
+  std::string result = BoardToFen(pos.GetBoard());
+  result += " " + std::to_string(pos.GetRule50Ply());
   result += " " + std::to_string(
                       (pos.GetGamePly() + (pos.IsBlackToMove() ? 1 : 2)) / 2);
   return result;
