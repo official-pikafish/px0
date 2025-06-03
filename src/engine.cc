@@ -44,9 +44,12 @@ const OptionId kStrictUciTiming{
                   "reply before sending 'go' and only then starts timing.",
      .visibility = OptionId::kProOnly}};
 const OptionId kPonderId{
-    "", "Ponder",
-    "Indicates to the engine that it will be requested to ponder. This "
-    "postpones resetting the search tree until the search is started."};
+    {.long_flag = "",
+     .uci_option = "Ponder",
+     .help_text =
+         "Indicates to the engine that it will be requested to ponder. This "
+         "postpones resetting the search tree until the search is started.",
+     .visibility = OptionId::kAlwaysVisible}};
 
 const OptionId kPreload{"preload", "",
                         "Initialize backend and load net on engine startup."};

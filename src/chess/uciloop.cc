@@ -45,10 +45,14 @@
 namespace lczero {
 namespace {
 
-const OptionId kShowWDL{"show-wdl", "UCI_ShowWDL",
-                        "Show win, draw and lose probability."};
-const OptionId kShowMovesleft{"show-movesleft", "UCI_ShowMovesLeft",
-                              "Show estimated moves left."};
+const OptionId kShowWDL{{.long_flag = "show-wdl",
+                         .uci_option = "UCI_ShowWDL",
+                         .help_text = "Show win, draw and lose probability.",
+                         .visibility = OptionId::kAlwaysVisible}};
+const OptionId kShowMovesleft{{.long_flag = "show-movesleft",
+                               .uci_option = "UCI_ShowMovesLeft",
+                               .help_text = "Show estimated moves left.",
+                               .visibility = OptionId::kAlwaysVisible}};
 
 const std::unordered_map<std::string, std::unordered_set<std::string>>
     kKnownCommands = {
