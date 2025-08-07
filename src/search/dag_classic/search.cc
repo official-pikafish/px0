@@ -2142,6 +2142,7 @@ void SearchWorker::DoBackupUpdateSingleNode(
     return;
   }
 
+  auto history = node_to_process.history;
   auto path = node_to_process.path;
   auto [n, nr, nm] = path.back();
   // For the first visit to a terminal, maybe update parent bounds too.
@@ -2167,8 +2168,17 @@ void SearchWorker::DoBackupUpdateSingleNode(
     // Three-fold itself has to be handled as a terminal to produce relevant
     // results. Unlike two-folds that can keep updating their "real" values.
     n->SetRepetition();
-    v = 0.0f;
-    d = 1.0f;
+    auto result = history.RuleJudge();
+    if (result == GameResult::WHITE_WON) {
+      v = 1.0f;
+      d = 0.0f;
+    } else if (result == GameResult::BLACK_WON) {
+      v = -1.0f;
+      d = 0.0f;
+    } else {
+      v = 0.0f;
+      d = 1.0f;
+    }
     m = 1;
   } else if (!MaybeAdjustForTerminalOrTransposition(n, nl, v, d, m, n_to_fix,
                                                     v_delta, d_delta, m_delta,
@@ -2192,14 +2202,24 @@ void SearchWorker::DoBackupUpdateSingleNode(
     // Only do this after edge update to have good values if play goes here.
     if (nr == 1 && !n->IsTerminal()) {
       n->SetRepetition();
-      v = 0.0f;
-      d = 1.0f;
+      auto result = history.RuleJudge();
+      if (result == GameResult::WHITE_WON) {
+        v = 1.0f;
+        d = 0.0f;
+      } else if (result == GameResult::BLACK_WON) {
+        v = -1.0f;
+        d = 0.0f;
+      } else {
+        v = 0.0f;
+        d = 1.0f;
+      }
       m = nm + 1;
     }
     if (n->IsRepetition()) n_to_fix = 0;
 
     // Nothing left to do without ancestors to update.
     if (++it == path.crend()) break;
+    history.Pop();
     auto [p, pr, pm] = *it;
     auto pl = p->GetLowNode();
 

@@ -1923,7 +1923,7 @@ void SearchWorker::ExtendNode(Node* node, int depth,
       // use plies since first repetition as moves left; exact if forced draw.
       GameResult result = history->RuleJudge();
       if (result == GameResult::DRAW) {
-        node->MakeTerminal(history->RuleJudge(), (float)cycle_length,
+        node->MakeTerminal(result, (float)cycle_length,
                            Node::Terminal::TwoFold);
         return;
       } else {
