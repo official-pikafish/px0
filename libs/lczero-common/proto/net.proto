@@ -88,6 +88,12 @@ message Weights {
     optional Layer dense_w = 7;
     optional Layer dense_b = 8;
     optional Smolgen smolgen = 9;
+
+    optional Layer rpe_q = 10;
+    optional Layer rpe_k = 11;
+    optional Layer rpe_v = 12;
+
+    // reserved 13 - 22 for int8 quantization
   }
 
   message FFN {
@@ -95,6 +101,7 @@ message Weights {
     optional Layer dense1_b = 2;
     optional Layer dense2_w = 3;
     optional Layer dense2_b = 4;
+    // reserved 5 - 10 for int8 quantization
   }
 
   message EncoderLayer {
