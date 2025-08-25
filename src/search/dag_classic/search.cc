@@ -2151,7 +2151,7 @@ void SearchWorker::DoBackupUpdateSingleNode(
   // For the first visit to a terminal, maybe update parent bounds too.
   auto update_parent_bounds =
       params_.GetStickyEndgames() && n->IsTerminal() && !n->GetN();
-  auto nl = n->GetLowNode();
+  const auto& nl = n->GetLowNode();
   float v = 0.0f;
   float d = 0.0f;
   float m = 0.0f;
@@ -2224,7 +2224,7 @@ void SearchWorker::DoBackupUpdateSingleNode(
     if (++it == path.crend()) break;
     history.Pop();
     auto [p, pr, pm] = *it;
-    auto pl = p->GetLowNode();
+    const auto& pl = p->GetLowNode();
 
     assert(!p->IsTerminal() ||
            (p->IsTerminal() && pl->IsTerminal() && p->GetWL() == -pl->GetWL() &&
@@ -2326,7 +2326,7 @@ bool SearchWorker::MaybeSetBounds(Node* p, float m, uint32_t* n_to_fix,
   //        Win ( 1, 1) -> (-1,-1) Loss
 
   // Nothing left to do for ancestors if the parent would be a regular node.
-  auto pl = p->GetLowNode();
+  const auto& pl = p->GetLowNode();
   if (lower == GameResult::BLACK_WON && upper == GameResult::WHITE_WON) {
     return false;
   } else if (lower == upper) {
