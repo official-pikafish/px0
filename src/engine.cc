@@ -151,6 +151,7 @@ void Engine::EnsureSearchStopped() {
 }
 
 void Engine::UpdateBackendConfig() {
+  LOGFILE << "Update backend configuration.";
   const std::string backend_name =
       options_.Get<std::string>(SharedBackendParams::kBackendId);
   if (!backend_ || backend_name != backend_name_ ||
@@ -168,6 +169,7 @@ void Engine::UpdateBackendConfig() {
 // Initializes the search with either the specified position for the normal
 // search or the position one ply trimmed for the ponder search.
 void Engine::InitializeSearchPosition(bool for_ponder) {
+  LOGFILE << "Setting a new search position.";
   assert(last_position_);
   if (!for_ponder) {
     search_->SetPosition(*last_position_);

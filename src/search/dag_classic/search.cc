@@ -154,6 +154,8 @@ Search::Search(const NodeTree& tree, Backend* backend,
   // enough to prevent expired entries later during the search.
   absl::erase_if(*tt_, [](const auto& item) { return item.second.expired(); });
 
+  LOGFILE << "Transposition table garbage collection done.";
+
   if (params_.GetMaxConcurrentSearchers() != 0) {
     pending_searchers_.store(params_.GetMaxConcurrentSearchers(),
                              std::memory_order_release);
@@ -1041,6 +1043,7 @@ void Search::Wait() {
     threads_.back().join();
     threads_.pop_back();
   }
+  LOGFILE << "Search threads cleaned.";
 }
 
 void Search::CancelSharedCollisions() REQUIRES(nodes_mutex_) {
