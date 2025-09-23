@@ -27,7 +27,9 @@
 
 #include "trainingdata/rescorer.h"
 
+#include <algorithm>
 #include <optional>
+#include <span>
 #include <sstream>
 
 #include "neural/decoder.h"
@@ -88,12 +90,6 @@ class PolicySubNode {
   PolicySubNode* children[2062];
 };
 
-struct ProcessFileFlags {
-  bool delete_files : 1;
-  bool nnue_best_score : 1;
-  bool nnue_best_move : 1;
-};
-
 std::atomic<int> games(0);
 std::atomic<int> positions(0);
 std::atomic<int> blunders(0);
@@ -108,7 +104,7 @@ void DataAssert(bool check_result) {
   if (!check_result) throw Exception("Range Violation");
 }
 
-void Validate(const std::vector<V6TrainingData>& fileContents) {
+void Validate(std::span<const V6TrainingData> fileContents) {
   if (fileContents.empty()) throw Exception("Empty File");
 
   for (size_t i = 0; i < fileContents.size(); i++) {
@@ -180,7 +176,7 @@ void Validate(const std::vector<V6TrainingData>& fileContents) {
   }
 }
 
-void Validate(const std::vector<V6TrainingData>& fileContents,
+void Validate(std::span<const V6TrainingData> fileContents,
               const MoveList& moves) {
   PositionHistory history;
   int rule50ply;
@@ -238,8 +234,8 @@ void ChangeInputFormat(int newInputFormat, V6TrainingData* data,
     bool played_fixed = false;
     bool best_fixed = false;
     for (auto move : history.Last().GetBoard().GenerateLegalMoves()) {
-      int i = move.as_nn_index(transform);
-      int j = move.as_nn_index(data->invariance_info & 7);
+      int i = MoveToNNIndex(move, transform);
+      int j = MoveToNNIndex(move, data->invariance_info & 7);
       newProbs[i] = data->probabilities[j];
       // For V6 data only, the played/best idx need updating.
       if (data->visits > 0) {
@@ -299,12 +295,18 @@ float Px0toNNUE(float q, float scaling = 416.11539129) {
   return scaling * std::log(numerator / denominator);
 }
 
+struct ProcessFileFlags {
+  bool delete_files : 1;
+  bool nnue_best_score : 1;
+  bool nnue_best_move : 1;
+};
+
 std::string AsNnueString(const Position& p, Move best, Move played, float q,
                          int result, const ProcessFileFlags& flags) {
   // Filter out in check and pv captures.
   static constexpr int VALUE_NONE = 32002;
-  bool filtered = p.GetBoard().IsUnderCheck() ||
-                  p.GetBoard().theirs().get(best.to());
+  bool filtered =
+      p.GetBoard().IsUnderCheck() || p.GetBoard().theirs().get(best.to());
   std::ostringstream out;
   out << "fen " << PositionToFen(p) << std::endl;
   if (p.IsBlackToMove()) best.Flip(), played.Flip();
@@ -321,288 +323,341 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
   return out.str();
 }
 
+struct FileData {
+  std::vector<V6TrainingData> fileContents;
+  MoveList moves;
+  pblczero::NetworkFormat::InputFormat input_format;
+};
+
+bool IsAllDraws(const FileData& data) {
+  for (const auto& chunk : data.fileContents) {
+    if (ResultForData(chunk) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<V6TrainingData> ReadFile(const std::string& file) {
+  std::vector<V6TrainingData> fileContents;
+
+  TrainingDataReader reader(file);
+  V6TrainingData chunk;
+  while (reader.ReadChunk(&chunk)) {
+    fileContents.push_back(chunk);
+  }
+
+  return fileContents;
+}
+
+FileData ProcessAndValidateFileData(std::vector<V6TrainingData> fileContents) {
+  FileData data;
+  data.fileContents = std::move(fileContents);
+
+  Validate(data.fileContents);
+
+  // Decode moves from input data
+  for (size_t i = 1; i < data.fileContents.size(); i++) {
+    data.moves.push_back(
+        DecodeMoveFromInput(PlanesFromTrainingData(data.fileContents[i]),
+                            PlanesFromTrainingData(data.fileContents[i - 1])));
+    // All moves decoded are from the point of view of the side after the
+    // move so need to mirror them all to be applicable to apply to the
+    // position before.
+    data.moves.back().Flip();
+  }
+  Validate(data.fileContents, data.moves);
+
+  data.input_format = static_cast<pblczero::NetworkFormat::InputFormat>(
+      data.fileContents[0].input_format);
+
+  return data;
+}
+
+void ApplyPolicySubstitutions(FileData& data) {
+  if (policy_subs.empty()) return;
+  PositionHistory history;
+  int rule50ply;
+  int gameply;
+  ChessBoard board;
+
+  PopulateBoard(data.input_format, PlanesFromTrainingData(data.fileContents[0]),
+                &board, &rule50ply, &gameply);
+  history.Reset(board, rule50ply, gameply);
+  uint64_t rootHash = HashCat(board.Hash(), rule50ply);
+
+  if (policy_subs.find(rootHash) != policy_subs.end()) {
+    PolicySubNode* rootNode = &policy_subs[rootHash];
+    for (size_t i = 0; i < data.fileContents.size(); i++) {
+      if (rootNode->active) {
+        for (int j = 0; j < 2062; j++) {
+          data.fileContents[i].probabilities[j] = rootNode->policy[j];
+        }
+      }
+      if (i + 1 < data.fileContents.size()) {
+        int transform = TransformForPosition(data.input_format, history);
+        int idx = MoveToNNIndex(data.moves[i], transform);
+        if (rootNode->children[idx] == nullptr) {
+          break;
+        }
+        rootNode = rootNode->children[idx];
+        history.Append(data.moves[i]);
+      }
+    }
+  }
+}
+
+void ApplyPolicyAdjustments(FileData& data, float distTemp, float distOffset) {
+  if (distTemp == 1.0f && distOffset == 0.0f) {
+    return;  // No adjustments needed
+  }
+
+  PositionHistory history;
+  int rule50ply;
+  int gameply;
+  ChessBoard board;
+
+  PopulateBoard(data.input_format, PlanesFromTrainingData(data.fileContents[0]),
+                &board, &rule50ply, &gameply);
+  history.Reset(board, rule50ply, gameply);
+  size_t move_index = 0;
+
+  for (auto& chunk : data.fileContents) {
+    const auto& board = history.Last().GetBoard();
+    std::vector<bool> boost_probs(2062, false);
+
+    float sum = 0.0;
+    int prob_index = 0;
+    float preboost_sum = 0.0f;
+    for (auto& prob : chunk.probabilities) {
+      float offset = distOffset;
+      prob_index++;
+      if (prob < 0 || std::isnan(prob)) continue;
+      prob = std::max(0.0f, prob + offset);
+      prob = std::pow(prob, 1.0f / distTemp);
+      sum += prob;
+    }
+    prob_index = 0;
+    float boost_sum = 0.0f;
+    for (auto& prob : chunk.probabilities) {
+      prob_index++;
+      if (prob < 0 || std::isnan(prob)) continue;
+      prob /= sum;
+    }
+    if (move_index < data.moves.size()) {
+      history.Append(data.moves[move_index]);
+      move_index++;
+    }
+  }
+}
+
+void EstimateAndCorrectPliesLeft(FileData& data) {
+  // Make move_count field plies_left for moves left head.
+  int offset = 0;
+  for (auto& chunk : data.fileContents) {
+    // plies_left can't be 0 for real v5 data, so if it is 0 it must be a v4
+    // conversion, and we should populate it ourselves with a better
+    // starting estimate.
+    if (chunk.plies_left == 0.0f) {
+      chunk.plies_left = (int)(data.fileContents.size() - offset);
+    }
+    offset++;
+  }
+}
+
+void ApplyDeblunder(FileData& data) {
+  // Deblunder only works from v6 data onwards. We therefore check
+  // the visits field which is 0 if we're dealing with upgraded data.
+  if (!deblunderEnabled || data.fileContents.back().visits == 0) {
+    return;
+  }
+
+  PositionHistory history;
+  int rule50ply;
+  int gameply;
+  ChessBoard board;
+
+  PopulateBoard(data.input_format, PlanesFromTrainingData(data.fileContents[0]),
+                &board, &rule50ply, &gameply);
+  history.Reset(board, rule50ply, gameply);
+
+  for (size_t i = 0; i < data.moves.size(); i++) {
+    history.Append(data.moves[i]);
+  }
+
+  float activeZ[3] = {data.fileContents.back().result_q,
+                      data.fileContents.back().result_d,
+                      data.fileContents.back().plies_left};
+  bool deblunderingStarted = false;
+
+  while (true) {
+    auto& cur = data.fileContents[history.GetLength() - 1];
+    // A blunder is defined by the played move being worse than the
+    // best move by a defined threshold, missing a forced win, or
+    // playing into a proven loss without being forced.
+    bool deblunderTriggerThreshold =
+        (cur.best_q - cur.played_q >
+         deblunderQBlunderThreshold - deblunderQBlunderWidth / 2.0);
+    bool deblunderTriggerTerminal =
+        (cur.best_q > -1 && cur.played_q < 1 &&
+         ((cur.best_q == 1 && ((cur.invariance_info & 8) != 0)) ||
+          cur.played_q == -1));
+    if (deblunderTriggerThreshold || deblunderTriggerTerminal) {
+      float newZRatio = 1.0f;
+      // If width > 0 and the deblunder didn't involve a terminal
+      // position, we apply a soft threshold by averaging old and new Z.
+      if (deblunderQBlunderWidth > 0 && !deblunderTriggerTerminal) {
+        newZRatio = std::min(
+            1.0f, (cur.best_q - cur.played_q - deblunderQBlunderThreshold) /
+                          deblunderQBlunderWidth +
+                      0.5f);
+      }
+      // Instead of averaging, a randomization can be applied here with
+      // newZRatio = newZRatio > rand( [0, 1) ) ? 1.0f : 0.0f;
+      activeZ[0] = (1 - newZRatio) * activeZ[0] + newZRatio * cur.best_q;
+      activeZ[1] = (1 - newZRatio) * activeZ[1] + newZRatio * cur.best_d;
+      activeZ[2] = (1 - newZRatio) * activeZ[2] + newZRatio * cur.best_m;
+      deblunderingStarted = true;
+      blunders += 1;
+    }
+    if (deblunderingStarted) {
+      data.fileContents[history.GetLength() - 1].result_q = activeZ[0];
+      data.fileContents[history.GetLength() - 1].result_d = activeZ[1];
+      data.fileContents[history.GetLength() - 1].plies_left = activeZ[2];
+    }
+    if (history.GetLength() == 1) break;
+    // Q values are always from the player to move.
+    activeZ[0] = -activeZ[0];
+    // Estimated remaining plies left has to be increased.
+    activeZ[2] += 1.0f;
+    history.Pop();
+  }
+}
+
+void ConvertInputFormat(FileData& data, int newInputFormat) {
+  if (newInputFormat == -1) return;
+
+  PositionHistory history;
+  int rule50ply;
+  int gameply;
+  ChessBoard board;
+
+  PopulateBoard(data.input_format, PlanesFromTrainingData(data.fileContents[0]),
+                &board, &rule50ply, &gameply);
+  history.Reset(board, rule50ply, gameply);
+  ChangeInputFormat(newInputFormat, &data.fileContents[0], history);
+
+  for (size_t i = 0; i < data.moves.size(); i++) {
+    history.Append(data.moves[i]);
+    ChangeInputFormat(newInputFormat, &data.fileContents[i + 1], history);
+  }
+}
+
+void WriteNnueOutput(const FileData& data, const std::string& nnue_plain_file,
+                     ProcessFileFlags flags) {
+  // Output data in Stockfish plain format.
+  if (!nnue_plain_file.empty()) {
+    static Mutex mutex;
+    std::ostringstream out;
+
+    PositionHistory history;
+    int rule50ply;
+    int gameply;
+    ChessBoard board;
+
+    PopulateBoard(data.input_format,
+                  PlanesFromTrainingData(data.fileContents[0]), &board,
+                  &rule50ply, &gameply);
+    history.Reset(board, rule50ply, gameply);
+
+    for (size_t i = 0; i < data.fileContents.size(); i++) {
+      auto chunk = data.fileContents[i];
+      Position p = history.Last();
+      if (chunk.visits > 0) {
+        // Format is v6 and position is evaluated.
+        Move best = MoveFromNNIndex(chunk.best_idx,
+                                    TransformForPosition(format, history));
+        Move played = MoveFromNNIndex(chunk.played_idx,
+                                      TransformForPosition(format, history));
+        float q = flags.nnue_best_score ? chunk.best_q : chunk.played_q;
+        out << AsNnueString(p, best, played, q, round(chunk.result_q), flags);
+      } else if (i < moves.size()) {
+        out << AsNnueString(p, moves[i], moves[i], chunk.best_q,
+                            round(chunk.result_q), flags);
+      }
+      if (i < data.moves.size()) {
+        history.Append(data.moves[i]);
+      }
+    }
+    std::ofstream file;
+    Mutex::Lock lock(mutex);
+    file.open(nnue_plain_file, std::ios_base::app);
+    if (file.is_open()) {
+      file << out.str();
+      file.close();
+    }
+  }
+}
+
+void WriteOutputs(const FileData& data, const std::string& file,
+                  const std::string& outputDir) {
+  // Write processed training data
+  if (!outputDir.empty()) {
+    std::string fileName = file.substr(file.find_last_of("/\\") + 1);
+    TrainingDataWriter writer(outputDir + "/" + fileName);
+    for (const auto& chunk : data.fileContents) {
+      // Don't save chunks that just provide move history.
+      if ((chunk.invariance_info & 64) == 0) {
+        writer.WriteChunk(chunk);
+      }
+    }
+  }
+}
+
+FileData ProcessFileInternal(std::vector<V6TrainingData> fileContents,
+                             float distTemp, float distOffset, int newInputFormat) {
+  // Process and validate file data
+  FileData data = ProcessAndValidateFileData(std::move(fileContents));
+
+  // Apply policy substitutions if available
+  ApplyPolicySubstitutions(data);
+
+  // Apply policy adjustments (temperature, offset)
+  ApplyPolicyAdjustments(data, distTemp, distOffset);
+
+  // Estimate and correct plies left
+  EstimateAndCorrectPliesLeft(data);
+
+  // Apply deblunder processing
+  ApplyDeblunder(data, tablebase);
+
+  // Convert input format if needed
+  ConvertInputFormat(data, newInputFormat);
+
+  return data;
+}
+
 void ProcessFile(const std::string& file, std::string outputDir, float distTemp,
                  float distOffset, int newInputFormat,
                  std::string nnue_plain_file, ProcessFileFlags flags) {
-  // Scope to ensure reader and writer are closed before deleting source file.
-  {
-    try {
-      TrainingDataReader reader(file);
-      std::vector<V6TrainingData> fileContents;
-      V6TrainingData data;
-      while (reader.ReadChunk(&data)) {
-        fileContents.push_back(data);
-      }
-      Validate(fileContents);
-      MoveList moves;
-      for (size_t i = 1; i < fileContents.size(); i++) {
-        moves.push_back(
-            DecodeMoveFromInput(PlanesFromTrainingData(fileContents[i]),
-                                PlanesFromTrainingData(fileContents[i - 1])));
-        // All moves decoded are from the point of view of the side after the
-        // move so need to mirror them all to be applicable to apply to the
-        // position before.
-        moves.back().Flip();
-      }
-      Validate(fileContents, moves);
-      games += 1;
-      positions += fileContents.size();
-      PositionHistory history;
-      int rule50ply;
-      int gameply;
-      ChessBoard board;
-      auto input_format = static_cast<pblczero::NetworkFormat::InputFormat>(
-          fileContents[0].input_format);
-      PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
-                    &board, &rule50ply, &gameply);
-      history.Reset(board, rule50ply, gameply);
-      uint64_t rootHash = HashCat(board.Hash(), rule50ply);
-      if (policy_subs.find(rootHash) != policy_subs.end()) {
-        PolicySubNode* rootNode = &policy_subs[rootHash];
-        for (size_t i = 0; i < fileContents.size(); i++) {
-          if (rootNode->active) {
-            /* Some logic for choosing a softmax to apply to better align the
-            new policy with the old policy...
-            double bestkld =
-              std::numeric_limits<double>::max(); float besttemp = 1.0f;
-            // Minima is usually in this range for 'better' data.
-            for (float temp = 1.0f; temp < 3.0f; temp += 0.1f) {
-              float soft[2062];
-              float sum = 0.0f;
-              for (int j = 0; j < 2062; j++) {
-                if (rootNode->policy[j] >= 0.0) {
-                  soft[j] = std::pow(rootNode->policy[j], 1.0f / temp);
-                  sum += soft[j];
-                } else {
-                  soft[j] = -1.0f;
-                }
-              }
-              double kld = 0.0;
-              for (int j = 0; j < 2062; j++) {
-                if (soft[j] >= 0.0) soft[j] /= sum;
-                if (rootNode->policy[j] > 0.0 &&
-                    fileContents[i].probabilities[j] > 0) {
-                  kld += -1.0f * soft[j] *
-                    std::log(fileContents[i].probabilities[j] / soft[j]);
-                }
-              }
-              if (kld < bestkld) {
-                bestkld = kld;
-                besttemp = temp;
-              }
-            }
-            std::cerr << i << " " << besttemp << " " << bestkld << std::endl;
-            */
-            for (int j = 0; j < 2062; j++) {
-              /*
-              if (rootNode->policy[j] >= 0.0) {
-                std::cerr << i << " " << j << " " << rootNode->policy[j] << " "
-                          << fileContents[i].probabilities[j] << std::endl;
-              }
-              */
-              fileContents[i].probabilities[j] = rootNode->policy[j];
-            }
-          }
-          if (i + 1 < fileContents.size()) {
-            int transform = TransformForPosition(input_format, history);
-            int idx = MoveToNNIndex(moves[i], transform);
-            if (rootNode->children[idx] == nullptr) {
-              break;
-            }
-            rootNode = rootNode->children[idx];
-            history.Append(moves[i]);
-          }
-        }
-      }
+  try {
+    // Read file data
+    std::vector<V6TrainingData> fileContents = ReadFile(file);
 
-      PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
-                    &board, &rule50ply, &gameply);
-      history.Reset(board, rule50ply, gameply);
-      orig_counts[ResultForData(fileContents[0]) + 1]++;
-      fixed_counts[ResultForData(fileContents[0]) + 1]++;
-      for (int i = 0; i < static_cast<int>(moves.size()); i++) {
-        history.Append(moves[i]);
-      }
+    FileData data = ProcessFileInternal(std::move(fileContents), distTemp,
+                                        distOffset, newInputFormat);
 
-      if (distTemp != 1.0f || distOffset != 0.0f) {
-        PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
-                      &board, &rule50ply, &gameply);
-        history.Reset(board, rule50ply, gameply);
-        int move_index = 0;
-        for (auto& chunk : fileContents) {
-          std::vector<bool> boost_probs(2062, false);
+    // Write NNUE output
+    WriteNnueOutput(data, nnue_plain_file, flags);
 
-          float sum = 0.0;
-          int prob_index = 0;
-          for (auto& prob : chunk.probabilities) {
-            float offset = distOffset;
-            prob_index++;
-            if (prob < 0 || std::isnan(prob)) continue;
-            prob = std::max(0.0f, prob + offset);
-            prob = std::pow(prob, 1.0f / distTemp);
-            sum += prob;
-          }
-          prob_index = 0;
-          for (auto& prob : chunk.probabilities) {
-            prob_index++;
-            if (prob < 0 || std::isnan(prob)) continue;
-            prob /= sum;
-          }
-          history.Append(moves[move_index]);
-          move_index++;
-        }
-      }
+    // Write outputs
+    WriteOutputs(data, file, outputDir);
 
-      // Make move_count field plies_left for moves left head.
-      int offset = 0;
-      bool all_draws = true;
-      for (auto& chunk : fileContents) {
-        // plies_left can't be 0 for real v5 data, so if it is 0 it must be a v4
-        // conversion, and we should populate it ourselves with a better
-        // starting estimate.
-        if (chunk.plies_left == 0.0f) {
-          chunk.plies_left = (int)(fileContents.size() - offset);
-        }
-        offset++;
-        all_draws = all_draws && (ResultForData(chunk) == 0);
-      }
-
-      // Deblunder only works from v6 data onwards. We therefore check
-      // the visits field which is 0 if we're dealing with upgraded data.
-      if (deblunderEnabled && fileContents.back().visits > 0) {
-        PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
-                      &board, &rule50ply, &gameply);
-        history.Reset(board, rule50ply, gameply);
-        for (size_t i = 0; i < moves.size(); i++) {
-          history.Append(moves[i]);
-        }
-        float activeZ[3] = {fileContents.back().result_q,
-                            fileContents.back().result_d,
-                            fileContents.back().plies_left};
-        bool deblunderingStarted = false;
-        while (true) {
-          auto& cur = fileContents[history.GetLength() - 1];
-          // A blunder is defined by the played move being worse than the
-          // best move by a defined threshold, missing a forced win, or
-          // playing into a proven loss without being forced.
-          bool deblunderTriggerThreshold =
-              (cur.best_q - cur.played_q >
-               deblunderQBlunderThreshold - deblunderQBlunderWidth / 2.0);
-          bool deblunderTriggerTerminal =
-              (cur.best_q > -1 && cur.played_q < 1 &&
-               ((cur.best_q == 1 && ((cur.invariance_info & 8) != 0)) ||
-                cur.played_q == -1));
-          if (deblunderTriggerThreshold || deblunderTriggerTerminal) {
-            float newZRatio = 1.0f;
-            // If width > 0 and the deblunder didn't involve a terminal
-            // position, we apply a soft threshold by averaging old and new Z.
-            if (deblunderQBlunderWidth > 0 && !deblunderTriggerTerminal) {
-              newZRatio = std::min(1.0f, (cur.best_q - cur.played_q -
-                                          deblunderQBlunderThreshold) /
-                                                 deblunderQBlunderWidth +
-                                             0.5f);
-            }
-            // Instead of averaging, a randomization can be applied here with
-            // newZRatio = newZRatio > rand( [0, 1) ) ? 1.0f : 0.0f;
-            activeZ[0] = (1 - newZRatio) * activeZ[0] + newZRatio * cur.best_q;
-            activeZ[1] = (1 - newZRatio) * activeZ[1] + newZRatio * cur.best_d;
-            activeZ[2] = (1 - newZRatio) * activeZ[2] + newZRatio * cur.best_m;
-            deblunderingStarted = true;
-            blunders += 1;
-            /* std::cout << "Blunder detected. Best move q=" << cur.best_q <<
-             " played move q=" << cur.played_q; */
-          }
-          if (deblunderingStarted) {
-            /*
-            std::cerr << "Deblundering: "
-                      << fileContents[history.GetLength() - 1].best_q << " "
-                      << fileContents[history.GetLength() - 1].best_d << " "
-                      << (int)fileContents[history.GetLength() - 1].result << "
-            "
-                      << (int)activeZ << std::endl;
-                      */
-            fileContents[history.GetLength() - 1].result_q = activeZ[0];
-            fileContents[history.GetLength() - 1].result_d = activeZ[1];
-            fileContents[history.GetLength() - 1].plies_left = activeZ[2];
-          }
-          if (history.GetLength() == 1) break;
-          // Q values are always from the player to move.
-          activeZ[0] = -activeZ[0];
-          // Estimated remaining plies left has to be increased.
-          activeZ[2] += 1.0f;
-          history.Pop();
-        }
-      }
-      if (newInputFormat != -1) {
-        PopulateBoard(input_format, PlanesFromTrainingData(fileContents[0]),
-                      &board, &rule50ply, &gameply);
-        history.Reset(board, rule50ply, gameply);
-        ChangeInputFormat(newInputFormat, &fileContents[0], history);
-        for (size_t i = 0; i < moves.size(); i++) {
-          history.Append(moves[i]);
-          ChangeInputFormat(newInputFormat, &fileContents[i + 1], history);
-        }
-      }
-
-      if (!outputDir.empty()) {
-        std::string fileName = file.substr(file.find_last_of("/\\") + 1);
-        TrainingDataWriter writer(outputDir + "/" + fileName);
-        for (auto chunk : fileContents) {
-          // Don't save chunks that just provide move history.
-          if ((chunk.invariance_info & 64) == 0) {
-            writer.WriteChunk(chunk);
-          }
-        }
-      }
-
-      // Output data in Stockfish plain format.
-      if (!nnue_plain_file.empty()) {
-        static Mutex mutex;
-        std::ostringstream out;
-        pblczero::NetworkFormat::InputFormat format;
-        if (newInputFormat != -1) {
-          format =
-              static_cast<pblczero::NetworkFormat::InputFormat>(newInputFormat);
-        } else {
-          format = input_format;
-        }
-        PopulateBoard(format, PlanesFromTrainingData(fileContents[0]), &board,
-                      &rule50ply, &gameply);
-        history.Reset(board, rule50ply, gameply);
-        for (size_t i = 0; i < fileContents.size(); i++) {
-          auto chunk = fileContents[i];
-          Position p = history.Last();
-          if (chunk.visits > 0) {
-            // Format is v6 and position is evaluated.
-            Move best = MoveFromNNIndex(chunk.best_idx,
-                                        TransformForPosition(format, history));
-            Move played = MoveFromNNIndex(
-                chunk.played_idx, TransformForPosition(format, history));
-            float q = flags.nnue_best_score ? chunk.best_q : chunk.played_q;
-            out << AsNnueString(p, best, played, q, round(chunk.result_q),
-                                flags);
-          } else if (i < moves.size()) {
-            out << AsNnueString(p, moves[i], moves[i], chunk.best_q,
-                                round(chunk.result_q), flags);
-          }
-          if (i < moves.size()) {
-            history.Append(moves[i]);
-          }
-        }
-        std::ofstream file;
-        Mutex::Lock lock(mutex);
-        file.open(nnue_plain_file, std::ios_base::app);
-        if (file.is_open()) {
-          file << out.str();
-          file.close();
-        }
-      }
-    } catch (Exception& ex) {
-      std::cerr << "While processing: " << file
-                << " - Exception thrown: " << ex.what() << std::endl;
-      if (flags.delete_files) {
-        std::cerr << "It will be deleted." << std::endl;
-      }
+  } catch (Exception& ex) {
+    std::cerr << "While processing: " << file
+              << " - Exception thrown: " << ex.what() << std::endl;
+    if (flags.delete_files) {
+      std::cerr << "It will be deleted." << std::endl;
     }
   }
   if (flags.delete_files) {
@@ -719,35 +774,28 @@ void RunRescorer() {
     return;
   }
 
-  deblunderEnabled = options.GetOptionsDict().Get<bool>(kDeblunder);
-  deblunderQBlunderThreshold =
-      options.GetOptionsDict().Get<float>(kDeblunderQBlunderThreshold);
-  deblunderQBlunderWidth =
-      options.GetOptionsDict().Get<float>(kDeblunderQBlunderWidth);
-
-  auto policySubsDir =
-      options.GetOptionsDict().Get<std::string>(kPolicySubsDirId);
-  if (policySubsDir.size() != 0) {
-    auto policySubFiles = GetFileList(policySubsDir);
-    for (size_t i = 0; i < policySubFiles.size(); i++) {
-      policySubFiles[i] = policySubsDir + "/" + policySubFiles[i];
-    }
-    BuildSubs(policySubFiles);
+  if (options.GetOptionsDict().Get<bool>(kDeblunder)) {
+    RescorerDeblunderSetup(
+        options.GetOptionsDict().Get<float>(kDeblunderQBlunderThreshold),
+        options.GetOptionsDict().Get<float>(kDeblunderQBlunderWidth));
   }
 
+  RescorerPolicySubstitutionSetup(
+      options.GetOptionsDict().Get<std::string>(kPolicySubsDirId));
+
   auto inputDir = options.GetOptionsDict().Get<std::string>(kInputDirId);
-  if (inputDir.size() == 0) {
+  if (inputDir.empty()) {
     std::cerr << "Must provide an input dir." << std::endl;
     return;
   }
   auto files = GetFileList(inputDir);
-  if (files.size() == 0) {
+  if (files.empty()) {
     std::cerr << "No files to process" << std::endl;
     return;
   }
-  for (size_t i = 0; i < files.size(); i++) {
-    files[i] = inputDir + "/" + files[i];
-  }
+  std::transform(
+      files.begin(), files.end(), files.begin(),
+      [&inputDir](const std::string& file) { return inputDir + "/" + file; });
   unsigned int threads = options.GetOptionsDict().Get<int>(kThreadsId);
   ProcessFileFlags flags;
   flags.delete_files = options.GetOptionsDict().Get<bool>(kDeleteFilesId);
@@ -761,7 +809,7 @@ void RunRescorer() {
       offset++;
       threads_.emplace_back([&options, offset_val, files, threads, flags]() {
         ProcessFiles(
-            files, options_.GetOptionsDict().Get<std::string>(kOutputDirId),
+            files, options.GetOptionsDict().Get<std::string>(kOutputDirId),
             options.GetOptionsDict().Get<float>(kTempId),
             options.GetOptionsDict().Get<float>(kDistributionOffsetId),
             options.GetOptionsDict().Get<int>(kNewInputFormatId), offset_val,
@@ -774,12 +822,12 @@ void RunRescorer() {
     }
 
   } else {
-    ProcessFiles(
-        files, options_.GetOptionsDict().Get<std::string>(kOutputDirId),
-        options.GetOptionsDict().Get<float>(kTempId),
-        options.GetOptionsDict().Get<float>(kDistributionOffsetId),
-        options.GetOptionsDict().Get<int>(kNewInputFormatId), 0, 1,
-        options.GetOptionsDict().Get<std::string>(kNnuePlainFileId), flags);
+    ProcessFiles(files, options.GetOptionsDict().Get<std::string>(kOutputDirId),
+                 options.GetOptionsDict().Get<float>(kTempId),
+                 options.GetOptionsDict().Get<float>(kDistributionOffsetId),
+                 options.GetOptionsDict().Get<int>(kNewInputFormatId), 0, 1,
+                 options.GetOptionsDict().Get<std::string>(kNnuePlainFileId),
+                 flags);
   }
   std::cout << "Games processed: " << games << std::endl;
   std::cout << "Positions processed: " << positions << std::endl;
@@ -789,6 +837,34 @@ void RunRescorer() {
             << " W: " << orig_counts[2] << std::endl;
   std::cout << "After L: " << fixed_counts[0] << " D: " << fixed_counts[1]
             << " W: " << fixed_counts[2] << std::endl;
+}
+
+std::vector<V6TrainingData> RescoreTrainingData(
+    std::vector<V6TrainingData> fileContents, float distTemp, float distOffset,
+    int newInputFormat) {
+  FileData data = ProcessFileInternal(std::move(fileContents), distTemp,
+                                      distOffset, newInputFormat);
+  return data.fileContents;
+}
+
+bool RescorerDeblunderSetup(float threshold, float width) {
+  deblunderEnabled = true;
+  deblunderQBlunderThreshold = threshold;
+  deblunderQBlunderWidth = width;
+  return true;
+}
+
+bool RescorerPolicySubstitutionSetup(std::string policySubsDir) {
+  if (!policySubsDir.empty()) {
+    auto policySubFiles = GetFileList(policySubsDir);
+    std::transform(policySubFiles.begin(), policySubFiles.end(),
+                   policySubFiles.begin(),
+                   [&policySubsDir](const std::string& file) {
+                     return policySubsDir + "/" + file;
+                   });
+    BuildSubs(policySubFiles);
+  }
+  return !policy_subs.empty();
 }
 
 }  // namespace lczero
