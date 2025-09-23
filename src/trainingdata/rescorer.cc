@@ -575,14 +575,14 @@ void WriteNnueOutput(const FileData& data, const std::string& nnue_plain_file,
       Position p = history.Last();
       if (chunk.visits > 0) {
         // Format is v6 and position is evaluated.
-        Move best = MoveFromNNIndex(chunk.best_idx,
-                                    TransformForPosition(format, history));
-        Move played = MoveFromNNIndex(chunk.played_idx,
-                                      TransformForPosition(format, history));
+        Move best = MoveFromNNIndex(
+            chunk.best_idx, TransformForPosition(data.input_format, history));
+        Move played = MoveFromNNIndex(
+            chunk.played_idx, TransformForPosition(data.input_format, history));
         float q = flags.nnue_best_score ? chunk.best_q : chunk.played_q;
         out << AsNnueString(p, best, played, q, round(chunk.result_q), flags);
-      } else if (i < moves.size()) {
-        out << AsNnueString(p, moves[i], moves[i], chunk.best_q,
+      } else if (i < data.moves.size()) {
+        out << AsNnueString(p, data.moves[i], data.moves[i], chunk.best_q,
                             round(chunk.result_q), flags);
       }
       if (i < data.moves.size()) {
@@ -629,7 +629,7 @@ FileData ProcessFileInternal(std::vector<V6TrainingData> fileContents,
   EstimateAndCorrectPliesLeft(data);
 
   // Apply deblunder processing
-  ApplyDeblunder(data, tablebase);
+  ApplyDeblunder(data);
 
   // Convert input format if needed
   ConvertInputFormat(data, newInputFormat);

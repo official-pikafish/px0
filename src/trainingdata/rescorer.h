@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "trainingdata/trainingdata_v6.h"

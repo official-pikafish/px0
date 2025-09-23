@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "utils/bititer.h"
 #include <cstdint>
 #include "utils/cppattributes.h"
 
