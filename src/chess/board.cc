@@ -32,9 +32,11 @@
 #include <charconv>
 #include <cstdlib>
 #include <cstring>
+#include <numeric>
 #include <sstream>
 #include <utility>
 #include <set>
+#include <absl/cleanup/cleanup.h>
 
 #include "utils/exception.h"
 
@@ -732,6 +734,28 @@ MoveList ChessBoard::GeneratePseudolegalMoves() const {
   return result;
 }  // namespace lczero
 
+bool ChessBoard::IsValid() const {
+  const auto all = ours() | theirs();
+  BitBoard bbs[] = {rooks(),   advisors(), cannons(), pawns(),
+                    knights(), bishops(),  kings()};
+  auto check =
+      all | std::accumulate(std::begin(bbs), std::end(bbs), BitBoard(0),
+                            [](BitBoard a, BitBoard b) { return a | b; });
+  if (check != all) {
+    return false;
+  }
+
+  for (std::size_t i = 0; i < std::size(bbs); ++i) {
+    for (std::size_t j = i + 1; j < std::size(bbs); ++j) {
+      if ((bbs[i] & bbs[j]).as_int()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 template<typename... T>
 void ResetSquare(const Square& s, T&... args) {
   (..., args.reset(s));
@@ -744,6 +768,15 @@ void SetIfSquare(const Square& from, const Square& to, T&... args) {
 
 bool ChessBoard::ApplyMove(Move move) {
   assert(our_pieces_.intersects(move.from().as_board()));
+#ifndef NDEBUG
+  absl::Cleanup validate = [&] {
+    if (!IsValid()) {
+      CERR << "Move " + move.ToString(true) +
+                  " resulted in invalid board: " + DebugString();
+      assert(false);
+    }
+  };
+#endif
   auto from = move.from();
   auto to = move.to();
 
