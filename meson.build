@@ -607,7 +607,7 @@ if get_option('build_backends')
                        dirs: get_option('onnx_libdir'), required: false).found()
       add_project_arguments('-DUSE_ROCM', language : 'cpp')
     endif
-    if cu_dart.found() and nvcc.found()
+    if get_option('cudnn') or get_option('plain_cuda') and cu_dart.found() and nvcc.found()
       add_project_arguments('-DUSE_ONNX_CUDART=1', language : 'cpp')
       deps += cu_dart
       foreach d : get_option('cudnn_include')
