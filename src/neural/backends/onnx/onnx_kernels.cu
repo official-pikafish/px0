@@ -28,6 +28,7 @@
 #include <cstdint>
 
 #include "neural/backends/onnx/onnx_kernels.h"
+#include "utils/bititer.h"
 #include "utils/exception.h"
 
 namespace lczero {
@@ -38,7 +39,7 @@ __global__ void expandPlanes_kernel(DataType* output, const __uint128_t* masks,
                                     const DataType* values, unsigned n) {
   unsigned index = threadIdx.x + blockDim.x * blockIdx.x;
   index *= bits_per_thread;
-  unsigned planeIndex = index // 90;
+  unsigned planeIndex = index / 90;
   if (planeIndex >= n) return;
 
   __uint128_t mask = masks[planeIndex];
@@ -62,10 +63,10 @@ void expandPlanesOnnx(DataType* output, const void* input, unsigned n,
                       cudaStream_t stream) {
   constexpr unsigned bits_per_thread = 2;
   int threads = n * 10 * 9 / bits_per_thread;
-  const int blockSize = 360;
+  const int blockSize = 256;
   int blocks = DivUp(threads, blockSize);
 
-  const uint64_t* masks = static_cast<const uint64_t*>(input);
+  const __uint128_t* masks = static_cast<const __uint128_t*>(input);
   const DataType* values = reinterpret_cast<const DataType*>(masks + n);
 
   expandPlanes_kernel<bits_per_thread>

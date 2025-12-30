@@ -648,6 +648,7 @@ if get_option('build_backends')
     if cu_dart.found() and nvcc_ok
       onnx_conf.set('USE_ONNX_CUDART', true)
       deps += cu_dart
+      nvcc_extra_args += ['-allow-unsupported-compiler', '--expt-relaxed-constexpr', '-std=c++20']
       files += custom_target('cuda onnx code',
         input : 'src/neural/backends/onnx/onnx_kernels.cu',
         output : outputname,

@@ -346,11 +346,11 @@ void OnnxComputation<DataType>::AddInput(InputPlanes&& input) {
   if (network_->provider_ == OnnxProvider::CUDA ||
       network_->provider_ == OnnxProvider::TRT) {
     assert(input.size() == kInputPlanes);
-    uint64_t* masks =
-        static_cast<uint64_t*>(inputs_outputs_->input_tensor_data_) +
+    __uint128_t* masks =
+        static_cast<__uint128_t*>(inputs_outputs_->input_tensor_data_) +
         input_size_ * kInputPlanes;
-    uint64_t* mask_end =
-        static_cast<uint64_t*>(inputs_outputs_->input_tensor_data_) +
+    __uint128_t* mask_end =
+        static_cast<__uint128_t*>(inputs_outputs_->input_tensor_data_) +
         network_->max_batch_size_ * kInputPlanes;
     DataType* values =
         reinterpret_cast<DataType*>(mask_end) + input_size_ * kInputPlanes;
@@ -509,16 +509,16 @@ void OnnxComputation<DataType>::ComputeBlocking() {
           static_cast<char*>(inputs_outputs_->input_tensor_data_);
       char* dst_masks =
           static_cast<char*>(inputs_outputs_->input_tensor_upload_device_);
-      src_masks += i * kInputPlanes * sizeof(uint64_t);
-      dst_masks += i * kInputPlanes * (sizeof(uint64_t) + sizeof(DataType));
+      src_masks += i * kInputPlanes * sizeof(__uint128_t);
+      dst_masks += i * kInputPlanes * (sizeof(__uint128_t) + sizeof(DataType));
       ReportCUDAErrors(cudaMemcpyAsync(
-          dst_masks, src_masks, batch * kInputPlanes * sizeof(uint64_t),
+          dst_masks, src_masks, batch * kInputPlanes * sizeof(__uint128_t),
           cudaMemcpyHostToDevice, network_->upload_stream_));
       char* src_values =
           static_cast<char*>(inputs_outputs_->input_tensor_data_);
-      src_values += network_->max_batch_size_ * kInputPlanes * sizeof(uint64_t);
+      src_values += network_->max_batch_size_ * kInputPlanes * sizeof(__uint128_t);
       src_values += i * kInputPlanes * sizeof(DataType);
-      char* dst_values = dst_masks + batch * kInputPlanes * sizeof(uint64_t);
+      char* dst_values = dst_masks + batch * kInputPlanes * sizeof(__uint128_t);
       ReportCUDAErrors(cudaMemcpyAsync(
           dst_values, src_values, batch * kInputPlanes * sizeof(DataType),
           cudaMemcpyHostToDevice, network_->upload_stream_));
@@ -837,7 +837,7 @@ OnnxNetwork::OnnxNetwork(const WeightsFile& file, const OptionsDict& opts,
       break;
   }
 
-  int optimize = opts.GetOrDefault<bool>("optimize", 3);
+  int optimize = opts.GetOrDefault<int>("optimize", 3);
   batch_size_ = opts.GetOrDefault<int>("batch", default_batch);
   steps_ = opts.GetOrDefault<int>("steps", default_steps);
   min_batch_size_ = opts.GetOrDefault<int>("min_batch", default_min_batch);
