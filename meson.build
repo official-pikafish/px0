@@ -487,21 +487,21 @@ if get_option('build_backends')
         cuda_arguments += ['-Xcompiler', '-MD']
       endif
     else
-      cuda_arguments += ['-Xcompiler', '-fPIC']
+      cuda_arguments += ['--std=c++17', '-Xcompiler', '-fPIC']
     endif
     if get_option('nvcc_ccbin') != ''
       cuda_arguments += ['-ccbin=' + get_option('nvcc_ccbin')]
     endif
     cuda_cc = get_option('cc_cuda') # Unfortunately option cuda_cc is reserved.
-    nvcc_extra_args = ['--expt-relaxed-constexpr', '--std=c++20']
+    nvcc_extra_args = []
     if cuda_cc != ''
-      nvcc_extra_args += ['-arch=compute_' + cuda_cc, '-code=sm_' + cuda_cc]
+      nvcc_extra_args = ['-arch=compute_' + cuda_cc, '-code=sm_' + cuda_cc]
     elif get_option('native_cuda') and nvcc_help.contains('-arch=native')
-      nvcc_extra_args += ['-arch=native']
+      nvcc_extra_args = ['-arch=native']
     elif nvcc_help.contains('-arch=all-major')
-      nvcc_extra_args += ['-arch=all-major', '-Wno-deprecated-gpu-targets']
+      nvcc_extra_args = ['-arch=all-major', '-Wno-deprecated-gpu-targets']
     else
-      nvcc_extra_args += ['-Wno-deprecated-gpu-targets']
+      nvcc_extra_args = ['-Wno-deprecated-gpu-targets']
       # Fallback for cuda versions without -arch=all-major.
       foreach x : ['35', '50', '60', '70', '80']
         if nvcc_help.contains('sm_' + x)
@@ -595,10 +595,6 @@ if get_option('build_backends')
                        dirs: get_option('onnx_libdir'), required: false).found()
       add_project_arguments('-DUSE_ROCM', language : 'cpp')
     endif
-    if cc.find_library('onnxruntime_providers_tensorrt',
-                       dirs: get_option('onnx_libdir'), required: false).found()
-      add_project_arguments('-DUSE_TRT', language : 'cpp')
-    endif
     has_backends = true
   endif
 
@@ -643,7 +639,6 @@ if get_option('build_backends')
       ]
       deps += cc.find_library('dl', required: false)
       has_backends = true
-      add_project_arguments('-fpermissive', language : 'cpp')
   endif
 
   ## ~~~~
@@ -824,7 +819,7 @@ endif
 if get_option('rescorer')
   executable('rescorer', 'src/rescorer_main.cc',
        [common_files, 'src/trainingdata/rescorer.cc'],
-       include_directories: includes, dependencies: deps, install: true)
+       include_directories: includes, dependencies: [deps], install: true)
 endif
 
 #############################################################################

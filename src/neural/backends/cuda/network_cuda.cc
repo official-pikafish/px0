@@ -69,15 +69,15 @@ static size_t getMaxAttentionHeadSize(
   const size_t encoder_heads = weights.pol_encoder_head_count;
 
   size_t size =
-      N * 90 *
+      N * 64 *
       std::max(std::max(embedding_op_size, encoder_dff), policy_d_model);
 
-  // size of matmul_qk matrix = encoder_heads_ * Batch * 90 * 90
-  const size_t matmul_qk_size = encoder_heads * N * 90 * 90;
-  const size_t output_size = N * 90 * 90;
+  // size of matmul_qk matrix = encoder_heads_ * Batch * 64 * 64
+  const size_t matmul_qk_size = encoder_heads * N * 64 * 64;
+  const size_t output_size = N * (64 * 64 + 8 * 24);
   size = std::max(size, std::max(matmul_qk_size, output_size));
 
-  size_t qkv_size = N * 90 * encoder_d_model;
+  size_t qkv_size = N * 64 * encoder_d_model;
   // We store qkv in single allocation, and other intermediate tensors are
   // sometimes stored by splitting an allocation into two halves.
   size = std::max(2 * size, 3 * qkv_size);
@@ -102,15 +102,15 @@ static size_t getMaxAttentionBodySize(const MultiHeadWeights& weights, int N) {
   const size_t encoder_heads = weights.encoder_head_count;
 
   size_t size =
-      N * 90 *
+      N * 64 *
       std::max(std::max(embedding_op_size, encoder_dff), encoder_d_model);
 
-  // size of matmul_qk matrix = encoder_heads_ * Batch * 90 * 90
-  const size_t matmul_qk_size = encoder_heads * N * 90 * 90;
-  const size_t output_size = N * 90 * 90;
+  // size of matmul_qk matrix = encoder_heads_ * Batch * 64 * 64
+  const size_t matmul_qk_size = encoder_heads * N * 64 * 64;
+  const size_t output_size = N * (64 * 64 + 8 * 24);
   size = std::max(size, std::max(matmul_qk_size, output_size));
 
-  size_t qkv_size = N * 90 * encoder_d_model;
+  size_t qkv_size = N * 64 * encoder_d_model;
   // We store qkv in single allocation, and other intermediate tensors are
   // sometimes stored by splitting an allocation into two halves.
   size = std::max(2 * size, 3 * qkv_size);
@@ -474,7 +474,7 @@ class CudaNetwork : public Network {
         network_.emplace_back(std::move(AttentionPolicy));
 
         auto policymap = std::make_unique<PolicyMapLayer<DataType>>(
-            getLastLayer(), kNumOutputPolicy, 1, 1, 90 * 90, true);
+            getLastLayer(), kNumOutputPolicy, 1, 1, 64 * 64 + 8 * 24, true);
         policymap->LoadWeights(kAttnPolicyMap, scratch_mem_);
         network_.emplace_back(std::move(policymap));
 
@@ -571,7 +571,7 @@ class CudaNetwork : public Network {
     //      hold output and third to hold skip connection's input).
 
     // size of input to the network
-    size_t maxSize = max_batch_size_ * kNumInputPlanes * 90 * sizeof(DataType);
+    size_t maxSize = max_batch_size_ * kNumInputPlanes * 64 * sizeof(DataType);
 
     // take max size of all layers
     for (auto& layer : network_) {
@@ -610,7 +610,7 @@ class CudaNetwork : public Network {
 #endif
 
     // Expand packed planes to full planes.
-    __uint128_t* ipDataMasks = io->input_masks_mem_gpu_;
+    uint64_t* ipDataMasks = io->input_masks_mem_gpu_;
     float* ipDataValues = io->input_val_mem_gpu_;
 
     DataType* tensor_mem[3];

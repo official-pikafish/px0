@@ -39,6 +39,15 @@ message Weights {
     optional float min_val = 1;
     optional float max_val = 2;
     optional bytes params = 3;
+    enum Encoding {
+      UNKNOWN_ENCODING = 0;
+      LINEAR16 = 1;
+      FLOAT16 = 2;
+      BFLOAT16 = 3;
+      FLOAT32 = 4;
+    }
+    optional Encoding encoding = 4;
+    repeated uint32 dims = 5;
   }
 
   message ConvBlock {
@@ -362,7 +371,7 @@ message Format {
     UNKNOWN = 0;
     LINEAR16 = 1;
   }
-
+  // Any encoding specified in a Layer overides this.
   optional Encoding weights_encoding = 1;
   // If network_format is missing, it's assumed to have
   // INPUT_CLASSICAL_112_PLANE / OUTPUT_CLASSICAL / NETWORK_CLASSICAL format.

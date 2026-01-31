@@ -30,7 +30,6 @@
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
-#include "utils/bititer.h"
 #include "utils/exception.h"
 
 #ifdef USE_CUDNN
@@ -46,7 +45,7 @@ typedef void* cudnnHandle_t;
 namespace lczero {
 namespace cudnn_backend {
 
-static constexpr int kNumOutputPolicy = 2062;
+static constexpr int kNumOutputPolicy = 1858;
 
 // max supported filter count for fast path
 // TODO: extend it to cover bigger networks!

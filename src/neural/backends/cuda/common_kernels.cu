@@ -36,7 +36,7 @@
 namespace lczero {
 namespace cudnn_backend {
 namespace {
-constexpr int kInputPlanes = 124;
+constexpr int kInputPlanes = 112;
 }  // namespace
 
 /////////////////////////////////////////////////////////////////////////////
@@ -449,17 +449,17 @@ void batchNorm(T* output, const T* input, const T* skipInput, int N, int C,
 }
 
 __global__ void expandPlanes_kernel_Fp32_NCHW(float* output,
-                                              const __uint128_t* masks,
+                                              const uint64_t* masks,
                                               const float* values, int n) {
-  // Block size of 360, same mask/val for 90 consecutive threads.
-  constexpr int kNumShmemElements = 360 / 90;
+  // Block size of 256, same mask/val for 64 consecutive threads.
+  constexpr int kNumShmemElements = 256 / 64;
 
-  __shared__ __uint128_t shMasks[kNumShmemElements];
+  __shared__ uint64_t shMasks[kNumShmemElements];
   __shared__ float shVals[kNumShmemElements];
 
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  int planeIndex = index / 90;
+  int planeIndex = index >> 6;
 
   if (planeIndex >= n) return;
 
@@ -470,22 +470,22 @@ __global__ void expandPlanes_kernel_Fp32_NCHW(float* output,
   }
   __syncthreads();
 
-  __uint128_t mask = shMasks[threadIdx.x / 90];
+  uint64_t mask = shMasks[threadIdx.x >> 6];
 
-  int sqIndex = index % 90;
+  int sqIndex = index & 0x3F;
   float op = 0;
 
-  bool set = !!(mask & (__uint128_t(1) << sqIndex));
+  bool set = !!(mask & (1ull << sqIndex));
   if (set) {
-    op = shVals[threadIdx.x / 90];
+    op = shVals[threadIdx.x >> 6];
   }
   output[index] = op;
 }
 
-void expandPlanes_Fp32_NCHW(float* output, const __uint128_t* masks,
+void expandPlanes_Fp32_NCHW(float* output, const uint64_t* masks,
                             const float* values, int n, cudaStream_t stream) {
-  int threads = n * 10 * 9;  // Each thread writes a single element.
-  const int blockSize = 360;
+  int threads = n * 8 * 8;  // Each thread writes a single element.
+  const int blockSize = 256;
   int blocks = DivUp(threads, blockSize);
   expandPlanes_kernel_Fp32_NCHW<<<blocks, blockSize, 0, stream>>>(output, masks,
                                                                   values, n);
@@ -525,17 +525,17 @@ void expandPlanes_Fp16_NHWC(half* output, const uint64_t* masks,
 }
 
 __global__ void expandPlanes_kernel_Fp16_NCHW(half* output,
-                                              const __uint128_t* masks,
+                                              const uint64_t* masks,
                                               const float* values, int n) {
-  // block size of 360, same mask/val for 90 consecutive threads
-  constexpr int kNumShmemElements = 360 / 90;
+  // block size of 256, same mask/val for 64 consecutive threads
+  constexpr int kNumShmemElements = 256 / 64;
 
-  __shared__ __uint128_t shMasks[kNumShmemElements];
+  __shared__ uint64_t shMasks[kNumShmemElements];
   __shared__ half shVals[kNumShmemElements];
 
   int index = threadIdx.x + blockDim.x * blockIdx.x;
 
-  int planeIndex = index / 90;
+  int planeIndex = index >> 6;
 
   if (planeIndex >= n) return;
 
@@ -546,22 +546,22 @@ __global__ void expandPlanes_kernel_Fp16_NCHW(half* output,
   }
   __syncthreads();
 
-  __uint128_t mask = shMasks[threadIdx.x / 90];
+  uint64_t mask = shMasks[threadIdx.x >> 6];
 
-  int sqIndex = index % 90;
+  int sqIndex = index & 0x3F;
   half op = 0;
 
-  bool set = !!(mask & (__uint128_t(1) << sqIndex));
+  bool set = !!(mask & (1ull << sqIndex));
   if (set) {
-    op = (half)shVals[threadIdx.x / 90];
+    op = (half)shVals[threadIdx.x >> 6];
   }
   output[index] = op;
 }
 
-void expandPlanes_Fp16_NCHW(half* output, const __uint128_t* masks,
+void expandPlanes_Fp16_NCHW(half* output, const uint64_t* masks,
                             const float* values, int n, cudaStream_t stream) {
-  int threads = n * 10 * 9;  // each thread writes a single element
-  const int blockSize = 360;
+  int threads = n * 8 * 8;  // each thread writes a single element
+  const int blockSize = 256;
   int blocks = DivUp(threads, blockSize);
   expandPlanes_kernel_Fp16_NCHW<<<blocks, blockSize, 0, stream>>>(output, masks,
                                                                   values, n);
@@ -1260,18 +1260,18 @@ __global__ void preprocess_for_attention_body_kernel(
   if (c >= input_size) {
     // concatenate from position encoding array
     if (is_pe_dense_embedding) {
-      op = (T)(encoding[n * 90 * encoding_size + hw * encoding_size + (c - input_size)]);
+      op = (T)(encoding[n * 64 * encoding_size + hw * encoding_size + (c - input_size)]);
     } else {
-      op = (T)(encoding[90 * hw + (c - input_size)]);
+      op = (T)(encoding[64 * hw + (c - input_size)]);
     }
   } else {
-    op = input[n * input_size * 90 + c * 90 + hw];  // nchw
+    op = input[n * input_size * 64 + c * 64 + hw];  // nchw
   }
 
   int outputC = input_size + encoding_size;
 
   // convert to nhwc
-  output[n * 90 * outputC + hw * outputC + c] = op;
+  output[n * 64 * outputC + hw * outputC + c] = op;
 }
 
 template <typename T>
@@ -1280,10 +1280,10 @@ void inputPreprocessForAttentionBody(T* output, const T* input,
                                      int encoding_size,
                                      bool is_pe_dense_embedding,
                                      cudaStream_t stream) {
-  // N * 90 blocks
+  // N * 64 blocks
   // (kInputPlanes + kNumPosEncodingChannels) threads
   // Each thread computes a single output element
-  dim3 gridSize = dim3(N, 90);
+  dim3 gridSize = dim3(N, 64);
   int blockSize = input_size + encoding_size;
   preprocess_for_attention_body_kernel<T><<<gridSize, blockSize, 0, stream>>>(
       output, input, encoding, input_size, encoding_size,
@@ -1315,7 +1315,7 @@ void applyInputGating(T* output, const T* input, const T* mult, const T* add,
   // Block y position indicates batch
   // Each thread computes a single output element
   dim3 blockSize, gridSize;
-  blockSize.x = DivUp(960, HW);
+  blockSize.x = DivUp(1024, HW);
   blockSize.y = HW;
   blockSize.z = 1;
   gridSize.x = DivUp(C, blockSize.x);
