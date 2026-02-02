@@ -80,7 +80,7 @@ option('cudnn',
 
 option('plain_cuda',
        type: 'boolean',
-       value: true,
+       value: false,
        description: 'Enable CUDA backend')
 
 option('opencl',
@@ -195,12 +195,12 @@ option('onnx',
 
 option('onnx_libdir',
        type: 'string',
-       value: '/usr/lib/',
+       value: 'D:/Environment/onnxruntime/lib',
        description: 'Paths to ONNX runtime libraries')
 
 option('onnx_include',
        type: 'string',
-       value: '/usr/include/onnxruntime/',
+       value: 'D:/Environment/onnxruntime/include',
        description: 'Paths to ONNX runtime includes')
 
 option('xla',
