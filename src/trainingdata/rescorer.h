@@ -28,9 +28,11 @@
 #pragma once
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "trainingdata/trainingdata_v6.h"
+#include "trainingdata/trainingdata_v7.h"
 
 namespace lczero {
 
@@ -39,8 +41,17 @@ void RunRescorer();
 // Interface for external use.
 bool RescorerDeblunderSetup(float threshold, float width);
 bool RescorerPolicySubstitutionSetup(std::string policySubsDir);
-std::vector<V6TrainingData> RescoreTrainingData(
-    std::vector<V6TrainingData> fileContents, float distTemp = 1.0f,
-    float distOffset = 0.0f, int newInputFormat = -1);
+
+template <typename T>
+std::vector<T> RescoreTrainingData(std::vector<T> fileContents,
+                                   float distTemp = 1.0f,
+                                   float distOffset = 0.0f,
+                                   int newInputFormat = -1);
+
+// Explicit instantiation declarations.
+extern template std::vector<V6TrainingData> RescoreTrainingData(
+    std::vector<V6TrainingData>, float, float, int);
+extern template std::vector<V7TrainingData> RescoreTrainingData(
+    std::vector<V7TrainingData>, float, float, int);
 
 }  // namespace lczero

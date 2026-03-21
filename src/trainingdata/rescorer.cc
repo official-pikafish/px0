@@ -109,7 +109,8 @@ void DataAssert(bool check_result,
   }
 }
 
-void Validate(std::span<const V6TrainingData> fileContents) {
+template <typename FrameType>
+void Validate(std::span<const FrameType> fileContents) {
   if (fileContents.empty()) throw Exception("Empty File");
 
   for (size_t i = 0; i < fileContents.size(); i++) {
@@ -181,8 +182,8 @@ void Validate(std::span<const V6TrainingData> fileContents) {
   }
 }
 
-void Validate(std::span<const V6TrainingData> fileContents,
-              const MoveList& moves) {
+template <typename FrameType>
+void Validate(std::span<const FrameType> fileContents, const MoveList& moves) {
   PositionHistory history;
   int rule50ply;
   int gameply;
@@ -328,13 +329,15 @@ std::string AsNnueString(const Position& p, Move best, Move played, float q,
   return out.str();
 }
 
+template <typename FrameType>
 struct FileData {
-  std::vector<V6TrainingData> fileContents;
+  std::vector<FrameType> fileContents;
   MoveList moves;
   pblczero::NetworkFormat::InputFormat input_format;
 };
 
-bool IsAllDraws(const FileData& data) {
+template <typename FrameType>
+bool IsAllDraws(const FileData<FrameType>& data) {
   for (const auto& chunk : data.fileContents) {
     if (ResultForData(chunk) != 0) {
       return false;
@@ -355,11 +358,13 @@ std::vector<V6TrainingData> ReadFile(const std::string& file) {
   return fileContents;
 }
 
-FileData ProcessAndValidateFileData(std::vector<V6TrainingData> fileContents) {
-  FileData data;
+template <typename FrameType>
+FileData<FrameType> ProcessAndValidateFileData(
+    std::vector<FrameType> fileContents) {
+  FileData<FrameType> data;
   data.fileContents = std::move(fileContents);
 
-  Validate(data.fileContents);
+  Validate(std::span<const FrameType>(data.fileContents));
   games += 1;
   positions += data.fileContents.size();
   // Decode moves from input data
@@ -372,7 +377,7 @@ FileData ProcessAndValidateFileData(std::vector<V6TrainingData> fileContents) {
     // position before.
     data.moves.back().Flip();
   }
-  Validate(data.fileContents, data.moves);
+  Validate(std::span<const FrameType>(data.fileContents), data.moves);
 
   data.input_format = static_cast<pblczero::NetworkFormat::InputFormat>(
       data.fileContents[0].input_format);
@@ -380,7 +385,8 @@ FileData ProcessAndValidateFileData(std::vector<V6TrainingData> fileContents) {
   return data;
 }
 
-void ApplyPolicySubstitutions(FileData& data) {
+template <typename FrameType>
+void ApplyPolicySubstitutions(FileData<FrameType>& data) {
   if (policy_subs.empty()) return;
   PositionHistory history;
   int rule50ply;
@@ -413,7 +419,9 @@ void ApplyPolicySubstitutions(FileData& data) {
   }
 }
 
-void ApplyPolicyAdjustments(FileData& data, float distTemp, float distOffset) {
+template <typename FrameType>
+void ApplyPolicyAdjustments(FileData<FrameType>& data, float distTemp,
+                            float distOffset) {
   if (distTemp == 1.0f && distOffset == 0.0f) {
     return;  // No adjustments needed
   }
@@ -457,7 +465,8 @@ void ApplyPolicyAdjustments(FileData& data, float distTemp, float distOffset) {
   }
 }
 
-void EstimateAndCorrectPliesLeft(FileData& data) {
+template <typename FrameType>
+void EstimateAndCorrectPliesLeft(FileData<FrameType>& data) {
   // Make move_count field plies_left for moves left head.
   int offset = 0;
   for (auto& chunk : data.fileContents) {
@@ -471,7 +480,8 @@ void EstimateAndCorrectPliesLeft(FileData& data) {
   }
 }
 
-void ApplyDeblunder(FileData& data) {
+template <typename FrameType>
+void ApplyDeblunder(FileData<FrameType>& data) {
   // Deblunder only works from v6 data onwards. We therefore check
   // the visits field which is 0 if we're dealing with upgraded data.
   if (!deblunderEnabled || data.fileContents.back().visits == 0) {
@@ -540,7 +550,8 @@ void ApplyDeblunder(FileData& data) {
   }
 }
 
-void ConvertInputFormat(FileData& data, int newInputFormat) {
+template <typename FrameType>
+void ConvertInputFormat(FileData<FrameType>& data, int newInputFormat) {
   if (newInputFormat == -1) return;
 
   PositionHistory history;
@@ -559,7 +570,9 @@ void ConvertInputFormat(FileData& data, int newInputFormat) {
   }
 }
 
-void WriteNnueOutput(const FileData& data, const std::string& nnue_plain_file,
+template <typename FrameType>
+void WriteNnueOutput(const FileData<FrameType>& data,
+                     const std::string& nnue_plain_file,
                      ProcessFileFlags flags) {
   // Output data in Stockfish plain format.
   if (!nnue_plain_file.empty()) {
@@ -605,7 +618,8 @@ void WriteNnueOutput(const FileData& data, const std::string& nnue_plain_file,
   }
 }
 
-void WriteOutputs(const FileData& data, const std::string& file,
+template <typename FrameType>
+void WriteOutputs(const FileData<FrameType>& data, const std::string& file,
                   const std::string& outputDir) {
   // Write processed training data
   if (!outputDir.empty()) {
@@ -620,10 +634,13 @@ void WriteOutputs(const FileData& data, const std::string& file,
   }
 }
 
-FileData ProcessFileInternal(std::vector<V6TrainingData> fileContents,
-                             float distTemp, float distOffset, int newInputFormat) {
+template <typename FrameType>
+FileData<FrameType> ProcessFileInternal(std::vector<FrameType> fileContents,
+                                        float distTemp, float distOffset,
+                                        int newInputFormat) {
   // Process and validate file data
-  FileData data = ProcessAndValidateFileData(std::move(fileContents));
+  FileData<FrameType> data =
+      ProcessAndValidateFileData(std::move(fileContents));
 
   // Apply policy substitutions if available
   ApplyPolicySubstitutions(data);
@@ -694,7 +711,7 @@ void BuildSubs(const std::vector<std::string>& files) {
     while (reader.ReadChunk(&data)) {
       fileContents.push_back(data);
     }
-    Validate(fileContents);
+    Validate(std::span<const V6TrainingData>(fileContents));
     MoveList moves;
     for (size_t i = 1; i < fileContents.size(); i++) {
       moves.push_back(
@@ -705,7 +722,7 @@ void BuildSubs(const std::vector<std::string>& files) {
       // position before.
       moves.back().Flip();
     }
-    Validate(fileContents, moves);
+    Validate(std::span<const V6TrainingData>(fileContents), moves);
 
     // Subs are 'valid'.
     PositionHistory history;
@@ -845,13 +862,14 @@ void RunRescorer() {
             << " W: " << fixed_counts[2] << std::endl;
 }
 
-std::vector<V6TrainingData> RescoreTrainingData(
-    std::vector<V6TrainingData> fileContents, float distTemp, float distOffset,
-    int newInputFormat) {
-  FileData data = ProcessFileInternal(std::move(fileContents), distTemp,
-                                      distOffset, newInputFormat);
+template <typename FrameType>
+std::vector<FrameType> RescoreTrainingData(std::vector<FrameType> fileContents,
+                                           float distTemp, float distOffset,
+                                           int newInputFormat) {
+  FileData<FrameType> data = ProcessFileInternal(
+      std::move(fileContents), distTemp, distOffset, newInputFormat);
   return data.fileContents;
-}
+}  // namespace lczero
 
 bool RescorerDeblunderSetup(float threshold, float width) {
   deblunderEnabled = true;
@@ -872,5 +890,11 @@ bool RescorerPolicySubstitutionSetup(std::string policySubsDir) {
   }
   return !policy_subs.empty();
 }
+
+// Explicit template instantiations.
+template std::vector<V6TrainingData> RescoreTrainingData(
+    std::vector<V6TrainingData>, float, float, int);
+template std::vector<V7TrainingData> RescoreTrainingData(
+    std::vector<V7TrainingData>, float, float, int);
 
 }  // namespace lczero
