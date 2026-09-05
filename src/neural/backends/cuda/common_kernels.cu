@@ -831,8 +831,9 @@ __global__ void softmax_opt_64_kernel(T* output, const T* input,
   float Sum = warpReduce(threadSum);
   Sum = subgroupBroadcast0(Sum);
 
-  ex[0] = ex[0] / Sum;
-  ex[1] = ex[1] / Sum;
+  const float inv_sum = 1.0f / Sum;
+  ex[0] = ex[0] * inv_sum;
+  ex[1] = ex[1] * inv_sum;
 
   // Store to memory
   if (fp16) {
@@ -900,7 +901,7 @@ void Softmax(int N, int C, T* output, const T* input, const T* input2,
              cudaStream_t stream) {
   if (C == 64) {
     int size = N * 32;  // Total no of threads needed
-    const int kBlockSize = 256;
+    const int kBlockSize = 128;  // Four independent softmax rows per block.
     int blocks = DivUp(size, kBlockSize);
     softmax_opt_64_kernel<T>
         <<<blocks, kBlockSize, 0, stream>>>(output, input, input2, size);
