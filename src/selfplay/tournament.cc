@@ -27,6 +27,8 @@
 
 #include "selfplay/tournament.h"
 
+#include <algorithm>
+#include <climits>
 #include <fstream>
 
 #include "chess/pgn.h"
@@ -92,6 +94,17 @@ const OptionId kOpeningsMirroredId{
     "Not really compatible with openings mode random."};
 const OptionId kOpeningsModeId{"openings-mode", "OpeningsMode",
                                "A choice of sequential, shuffled, or random."};
+const OptionId kOpeningSeedId{
+    "opening-seed", "OpeningSeed",
+    "Seed for shuffled and random openings mode."};
+
+uint64_t GetOpeningSeed(const OptionsDict& options) {
+  if (options.Exists<int>(kOpeningSeedId)) {
+    return static_cast<unsigned>(options.Get<int>(kOpeningSeedId));
+  }
+  return std::random_device()();
+}
+
 }  // namespace
 
 void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
@@ -128,6 +141,7 @@ void SelfPlayTournament::PopulateOptions(OptionsParser* options) {
   std::vector<std::string> openings_modes = {"sequential", "shuffled",
                                              "random"};
   options->Add<ChoiceOption>(kOpeningsModeId, openings_modes) = "sequential";
+  options->Add<IntOption>(kOpeningSeedId, INT_MIN, INT_MAX);
 
   SelfPlayGame::PopulateUciParams(options);
 
@@ -154,7 +168,8 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
                                        UciResponder* uci_responder,
                                        GameInfo::Callback game_info,
                                        TournamentInfo::Callback tournament_info)
-    : player_options_{{options.GetSubdict("player1").GetSubdict("white"),
+    : opening_random_(GetOpeningSeed(options)),
+      player_options_{{options.GetSubdict("player1").GetSubdict("white"),
                        options.GetSubdict("player1").GetSubdict("black")},
                       {options.GetSubdict("player2").GetSubdict("white"),
                        options.GetSubdict("player2").GetSubdict("black")}},
@@ -178,7 +193,7 @@ SelfPlayTournament::SelfPlayTournament(const OptionsDict& options,
     book_reader.AddPgnFile(book);
     openings_ = book_reader.ReleaseGames();
     if (options.Get<std::string>(kOpeningsModeId) == "shuffled") {
-      Random::Get().Shuffle(openings_.begin(), openings_.end());
+      std::shuffle(openings_.begin(), openings_.end(), opening_random_);
     }
   }
   if (kPolicyGamesSize > 0 && kValueGamesSize > 0) {
@@ -265,7 +280,8 @@ void SelfPlayTournament::PlayOneGame(int game_number) {
         opening = openings_[(game_number / 2) % openings_.size()];
       } else if (player_options_[0][0].Get<std::string>(kOpeningsModeId) ==
                  "random") {
-        opening = openings_[Random::Get().GetInt(0, openings_.size() - 1)];
+        std::uniform_int_distribution<size_t> dist(0, openings_.size() - 1);
+        opening = openings_[dist(opening_random_)];
       } else {
         opening = openings_[game_number % openings_.size()];
       }
