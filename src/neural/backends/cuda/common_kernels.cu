@@ -1247,6 +1247,36 @@ __global__ void preprocess_for_attention_body_kernel(
   output[n * 64 * outputC + hw * outputC + c] = op;
 }
 
+__global__ void preprocess_for_attention_body_fp16x8_kernel(
+    half* output, const half* input, const half* encoding, int input_size,
+    int encoding_size) {
+  constexpr int kContextSize = 64;
+  constexpr int kElementsPerThread = 8;
+
+  const int n = blockIdx.x;
+  const int hw = blockIdx.y;
+  const int c = threadIdx.x * kElementsPerThread;
+  const int output_size = input_size + encoding_size;
+  const int output_index =
+      n * kContextSize * output_size + hw * output_size + c;
+
+  half values[kElementsPerThread];
+  if (c < input_size) {
+    const int input_base =
+        n * input_size * kContextSize + c * kContextSize + hw;
+#pragma unroll
+    for (int i = 0; i < kElementsPerThread; i++) {
+      values[i] = input[input_base + i * kContextSize];
+    }
+  } else {
+    const int encoding_index = n * kContextSize * encoding_size +
+                               hw * encoding_size + c - input_size;
+    copyAs<uint4>(&values[0], &encoding[encoding_index]);
+  }
+
+  copyAs<uint4>(&output[output_index], &values[0]);
+}
+
 template <typename T>
 void inputPreprocessForAttentionBody(T* output, const T* input,
                                      const T* encoding, int N, int input_size,
@@ -1258,6 +1288,22 @@ void inputPreprocessForAttentionBody(T* output, const T* input,
   // Each thread computes a single output element
   dim3 gridSize = dim3(N, 64);
   int blockSize = input_size + encoding_size;
+  if constexpr (std::is_same<half, T>::value) {
+    constexpr int kElementsPerThread = 8;
+    // Keep every vector wholly within either the input or encoding region.
+    const bool use_vector_dense =
+        is_pe_dense_embedding && input_size > 0 && encoding_size > 0 &&
+        input_size % kElementsPerThread == 0 &&
+        encoding_size % kElementsPerThread == 0 &&
+        blockSize % kElementsPerThread == 0;
+    if (use_vector_dense) {
+      preprocess_for_attention_body_fp16x8_kernel
+          <<<gridSize, blockSize / kElementsPerThread, 0, stream>>>(
+              output, input, encoding, input_size, encoding_size);
+      return;
+    }
+  }
+
   preprocess_for_attention_body_kernel<T><<<gridSize, blockSize, 0, stream>>>(
       output, input, encoding, input_size, encoding_size,
       is_pe_dense_embedding);
