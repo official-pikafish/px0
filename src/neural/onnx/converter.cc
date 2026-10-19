@@ -50,6 +50,16 @@
 namespace lczero {
 namespace {
 
+// The position encoding table as one vector, row after row.
+std::vector<float> PosEncodingValues() {
+  std::vector<float> values;
+  values.reserve(90 * kNumPosEncodingChannels);
+  for (const auto& row : kPosEncoding) {
+    values.insert(values.end(), std::begin(row), std::end(row));
+  }
+  return values;
+}
+
 class Converter {
  public:
   Converter(const pblczero::Net& net,
@@ -619,7 +629,7 @@ std::string Converter::AttentionBodyMapEmbedding(OnnxBuilder* builder,
   //      builder->AddInitializer(
   //          "/const/pos_encoding",
   //          *GetWeghtsConverter(
-  //              std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
+  //              PosEncodingValues(),
   //              {1, 90 * 90})));
 
   //  pad = builder->Reshape(
@@ -639,7 +649,7 @@ std::string Converter::AttentionBodyMapEmbedding(OnnxBuilder* builder,
   //      builder->AddInitializer(
   //          "/const/pos_encoding",
   //          *GetWeghtsConverter(
-  //              std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
+  //              PosEncodingValues(),
   //              {1, 90, 90})),
   //      pad);
   //} else {
@@ -651,7 +661,7 @@ std::string Converter::AttentionBodyMapEmbedding(OnnxBuilder* builder,
   //      builder->AddInitializer(
   //          "/const/pos_encoding",
   //          *GetWeghtsConverter(
-  //              std::vector<float>(kPosEncoding[0], kPosEncoding[0] + 90 * 90),
+  //              PosEncodingValues(),
   //              {1, 90, 90})),
   //      pad);
   //}
