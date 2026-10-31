@@ -41,7 +41,7 @@
 #include "utils/exception.h"
 
 #ifndef NO_PEXT
-// Include header for pext instruction.
+// Include header for PEXT/PDEP instructions.
 #include <immintrin.h>
 #ifdef _MSC_VER
 #define pext(b, m, s) ((_pext_u64(b._Word[1], m._Word[1]) << s) | _pext_u64(b._Word[0], m._Word[0]))
@@ -125,15 +125,24 @@ BitBoard PseudoAttacks[kPieceTypeNB.idx + 3][90];
 // Magic bitboard routines and structures.
 // We use so-called "fancy" magic bitboards.
 
+#if defined(NO_PEXT)
+using AttackTableEntry = BitBoard;
+#else
+using AttackTableEntry = uint32_t;
+#endif
+
 // Structure holding all relevant magic parameters per square.
 struct MagicParams {
   // Relevant occupancy mask.
   __uint128_t mask_;
   // Pointer to lookup table.
-  BitBoard* attacks_table_;
+  AttackTableEntry* attacks_table_;
 #if defined(NO_PEXT)
   // Magic number.
   __uint128_t magic_number_;
+#else
+  // Empty-board attacks used to unpack the two 16-bit halves of an entry.
+  __uint128_t pseudo_attacks_;
 #endif
   // Number of bits to shift.
   uint8_t shift_bits_;
@@ -144,6 +153,20 @@ struct MagicParams {
     return unsigned(((occupied.as_int() & mask_) * magic_number_) >> shift_bits_);
 #else
     return unsigned(pext(occupied.as_int(), mask_, shift_bits_));
+#endif
+  }
+
+  BitBoard attacks(BitBoard occupied) const {
+#if defined(NO_PEXT)
+    return attacks_table_[index(occupied)];
+#else
+    const uint32_t packed = attacks_table_[index(occupied)];
+    // Each 64-bit board half has at most 16 possible attack squares.
+    // Keep their packed bits in separate halves, as in Pikafish.
+    return BitBoard(
+        (__uint128_t(_pdep_u64(packed >> 16, uint64_t(pseudo_attacks_ >> 64)))
+         << 64) |
+        __uint128_t(_pdep_u64(packed, uint64_t(pseudo_attacks_))));
 #endif
   }
 };
@@ -356,11 +379,11 @@ static MagicParams knight_magic_params[90];
 static MagicParams knight_to_magic_params[90];
 
 // Precomputed attacks bitboard tables.
-static BitBoard rook_attacks_table[0x108000];
-static BitBoard cannon_attacks_table[0x108000];
-static BitBoard bishop_attacks_table[0x228];
-static BitBoard knight_attacks_table[0x380];
-static BitBoard knight_to_attacks_table[0x3E0];
+static AttackTableEntry rook_attacks_table[0x108000];
+static AttackTableEntry cannon_attacks_table[0x108000];
+static AttackTableEntry bishop_attacks_table[0x228];
+static AttackTableEntry knight_attacks_table[0x380];
+static AttackTableEntry knight_to_attacks_table[0x3E0];
 
 static Square BetweenSQ[90][90];
 
@@ -491,7 +514,7 @@ const BitBoard PawnAttacksToBB(Square s) {
 // Builds attacks table.
 template <PieceType pt>
 static void BuildAttacksTable(MagicParams* magic_params,
-                              BitBoard* attacks_table) {
+                              AttackTableEntry* attacks_table) {
   // Offset into lookup table.
   uint32_t table_offset = 0;
 
@@ -518,6 +541,12 @@ static void BuildAttacksTable(MagicParams* magic_params,
     // the number of relevant occupancy bits suffice to index the attacks table.
     m.shift_bits_ = 128 - mask.count();
 #else
+    m.pseudo_attacks_ =
+        (pt == kRook || pt == kCannon ? SlidingAttack<kRook>(b_sq, BitBoard(0))
+                                    : LameLeaperAttack<pt>(b_sq, BitBoard(0)))
+            .as_int();
+    assert(BitBoard(uint64_t(m.pseudo_attacks_)).count() <= 16);
+    assert(BitBoard(m.pseudo_attacks_ >> 64).count() <= 16);
     // Set number of shifted bits. PEXT shift is the bit count of low 64 bits
     m.shift_bits_ = BitBoard(uint64_t(mask.as_int())).count();
 #endif
@@ -527,7 +556,7 @@ static void BuildAttacksTable(MagicParams* magic_params,
 
     // Clear attacks table (used for sanity check later on).
     for (int i = 0; i < (1 << mask.count()); i++) {
-      m.attacks_table_[i] = BitBoard(0);
+      m.attacks_table_[i] = AttackTableEntry(0);
     }
 
     // Build square attacks table for every possible relevant occupancy
@@ -545,12 +574,16 @@ static void BuildAttacksTable(MagicParams* magic_params,
       // the number of relevant occupancy bits suffice to index the attacks
       // table. If the table already contains an attacks bitboard, possible
       // collisions should be constructive.
-      if (m.attacks_table_[index] != 0 && m.attacks_table_[index] != attacks) {
+      if (m.attacks_table_[index].as_int() != 0 && m.attacks_table_[index] != attacks) {
         throw Exception("Invalid magic number!");
       }
-#endif
-      // Update table.
       m.attacks_table_[index] = attacks;
+#else
+      const auto attack_bits = attacks.as_int();
+      m.attacks_table_[index] =
+          uint32_t(pext(attack_bits, m.pseudo_attacks_, 16));
+      assert(m.attacks(b) == attacks);
+#endif
       b = (b - m.mask_) & m.mask_;
     } while (b);
 
@@ -570,20 +603,15 @@ static inline BitBoard GetAttacks(const Square square,
   switch (Pt.idx)
   {
     case kRook.idx:
-      return rook_magic_params[s]
-          .attacks_table_[rook_magic_params[s].index(pieces)];
+      return rook_magic_params[s].attacks(pieces);
     case kCannon.idx:
-      return cannon_magic_params[s]
-          .attacks_table_[cannon_magic_params[s].index(pieces)];
+      return cannon_magic_params[s].attacks(pieces);
     case kBishop.idx:
-      return bishop_magic_params[s]
-          .attacks_table_[bishop_magic_params[s].index(pieces)];
+      return bishop_magic_params[s].attacks(pieces);
     case kKnight.idx:
-      return knight_magic_params[s]
-          .attacks_table_[knight_magic_params[s].index(pieces)];
+      return knight_magic_params[s].attacks(pieces);
     case kKnightTo.idx:
-      return knight_to_magic_params[s]
-          .attacks_table_[knight_to_magic_params[s].index(pieces)];
+      return knight_to_magic_params[s].attacks(pieces);
     default:
       return PseudoAttacks[Pt.idx][s];
   }

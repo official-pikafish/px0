@@ -22,7 +22,7 @@ if "%CUDA%"=="true" (
 )
 
 rem 2. Edit the paths for the build dependencies.
-if not defined CUDA_PATH set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9
+if not defined CUDA_PATH set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4
 set CUDNN_PATH=%CUDA_PATH%
 set OPENCL_LIB_PATH=%CUDA_PATH%\lib\x64
 set OPENCL_INCLUDE_PATH=%CUDA_PATH%\include
