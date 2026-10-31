@@ -839,8 +839,10 @@ bool ChessBoard::ApplyMove(Move move) {
 template<bool our>
 BitBoard ChessBoard::CheckersTo(const Square& ksq, const BitBoard &occupied) const {
   BitBoard checkers = BitBoard(0);
-  // Rooks.
-  checkers |= GetAttacks<kRook>(ksq, occupied) & rooks_;
+  // Rooks and the opposing king (flying general).
+  const Square enemy_king = our ? their_king_ : our_king_;
+  checkers |= GetAttacks<kRook>(ksq, occupied) &
+              (rooks_ | BitBoard::FromSquare(enemy_king));
   // Cannons.
   checkers |= GetAttacks<kCannon>(ksq, occupied) & cannons_;
   // Pawns.
@@ -877,15 +879,8 @@ bool ChessBoard::IsLegalMove(Move move) const {
   occupied.reset(move.from());
   occupied.set(move.to());
 
-  Square our_king = our_king_;
-  Square their_king = their_king_;
-  if (!our)
-    std::swap(our_king, their_king);
-
-  // Flying general
-  Square ksq = our_king == move.from() ? move.to() : our_king;
-  if (GetAttacks<kRook>(ksq, occupied).get(their_king))
-    return false;
+  const Square our_king = our ? our_king_ : their_king_;
+  const Square ksq = our_king == move.from() ? move.to() : our_king;
 
   // If the moving piece is a king, check whether the destination square
   // is not under attack after the move.
