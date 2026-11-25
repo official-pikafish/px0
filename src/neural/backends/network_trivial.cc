@@ -25,97 +25,92 @@
   Program grant you additional permission to convey the resulting work.
 */
 
-// This is the trivial backend, which.
-// Uses idea from
-// https://www.chessprogramming.org/Simplified_Evaluation_Function
-// for Q (but coefficients are "trained" from 1000 arbitrary test60 games).
-// Returns the same P vector always ("trained" from 1 hour of test60 games).
+// The trivial backend: a very fast CPU-only evaluator.
+// Value: material balance of the side to move.
+// Policy: uniform over the legal moves.
 
-#include <algorithm>
-#include <array>
 #include <cmath>
-#include <cstdint>
-#include <iterator>
 #include <memory>
 
-#include "neural/factory.h"
-#include "chess/bitboard.h"
+#include "chess/board.h"
+#include "neural/backend.h"
+#include "neural/register.h"
 
 namespace lczero {
 namespace {
 
-static inline float MaterialScore(const __uint128_t& maskOurs, const __uint128_t& maskTheirs, double score) {
-  return (BitBoard(maskOurs).count() - BitBoard(maskTheirs).count()) * score;
+float MaterialScore(const ChessBoard& board, BitBoard pieces, float score) {
+  return ((board.ours() & pieces).count() -
+          (board.theirs() & pieces).count()) *
+         score;
 }
 
-class TrivialNetworkComputation : public NetworkComputation {
+float Evaluate(const ChessBoard& board) {
+  const float q = MaterialScore(board, board.rooks(), 0.18181818181818182f) +
+                  MaterialScore(board, board.advisors(), 0.03636363636363636f) +
+                  MaterialScore(board, board.cannons(), 0.10090909090909091f) +
+                  MaterialScore(board, board.pawns(), 0.01818181818181818f) +
+                  MaterialScore(board, board.knights(), 0.08090909090909090f) +
+                  MaterialScore(board, board.bishops(), 0.05454545454545454f);
+  // Multiply Q by 10, otherwise evals too low. :-/
+  return 2.0f / (1.0f + std::exp(q * -10.0f)) - 1.0f;
+}
+
+class TrivialComputation : public BackendComputation {
  public:
-  void AddInput(InputPlanes&& input) override {
-    float q =
-        // Rook
-        MaterialScore(input[0].mask, input[7].mask, 0.18181818181818182) +
-        // Advisor
-        MaterialScore(input[1].mask, input[8].mask, 0.03636363636363636) +
-        // Cannon
-        MaterialScore(input[2].mask, input[9].mask, 0.10090909090909091) +
-        // Pawn
-        MaterialScore(input[3].mask, input[10].mask, 0.01818181818181818) +
-        // Knight
-        MaterialScore(input[4].mask, input[11].mask, 0.08090909090909090) +
-        // Bishop
-        MaterialScore(input[5].mask, input[12].mask, 0.05454545454545454);
-    // Multiply Q by 10, otherwise evals too low. :-/
-    q_.push_back(2.0f / (1.0f + std::exp(q * -10.0f)) - 1.0f);
+  size_t UsedBatchSize() const override { return batch_size_; }
+
+  AddInputResult AddInput(const EvalPosition& pos,
+                          EvalResultPtr result) override {
+    // The evaluation is so cheap that it is done right away; the legal moves
+    // span is not guaranteed to outlive this call anyway.
+    if (result.q) *result.q = Evaluate(pos.pos.back().GetBoard());
+    if (result.d) *result.d = 0.0f;
+    if (result.m) *result.m = 0.0f;
+    if (!result.p.empty()) {
+      const float prob = 1.0f / result.p.size();
+      for (float& p : result.p) p = prob;
+    }
+    ++batch_size_;
+    return ENQUEUED_FOR_EVAL;
   }
 
   void ComputeBlocking() override {}
 
-  int GetBatchSize() const override { return q_.size(); }
-
-  float GetQVal(int sample) const override { return q_[sample]; }
-
-  float GetDVal(int) const override { return 0.0f; }
-
-  float GetMVal(int /* sample */) const override { return 0.0f; }
-
-  float GetPVal(int /* sample */, [[maybe_unused]]int move_id) const override {
-    return 0.0f;
-  }
-
  private:
-  std::vector<float> q_;
+  size_t batch_size_ = 0;
 };
 
-class TrivialNetwork : public Network {
+class TrivialBackend : public Backend {
  public:
-  TrivialNetwork(const OptionsDict& options)
-      : capabilities_{
-            static_cast<pblczero::NetworkFormat::InputFormat>(
-                options.GetOrDefault<int>(
-                    "input_mode",
-                    pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE)),
-            pblczero::NetworkFormat::OUTPUT_CLASSICAL,
-            pblczero::NetworkFormat::MOVES_LEFT_NONE} {}
-  std::unique_ptr<NetworkComputation> NewComputation() override {
-    return std::make_unique<TrivialNetworkComputation>();
-  }
-  const NetworkCapabilities& GetCapabilities() const override {
-    return capabilities_;
+  explicit TrivialBackend(const OptionsDict& options) {
+    UpdateConfiguration(options);
   }
 
- private:
-  NetworkCapabilities capabilities_{
-      pblczero::NetworkFormat::INPUT_CLASSICAL_112_PLANE,
-      pblczero::NetworkFormat::OUTPUT_CLASSICAL,
-      pblczero::NetworkFormat::MOVES_LEFT_NONE};
+  BackendAttributes GetAttributes() const override {
+    return BackendAttributes{.has_mlh = false,
+                             .has_wdl = false,
+                             .runs_on_cpu = false,
+                             .suggested_num_search_threads = 1,
+                             .recommended_batch_size = 256,
+                             .maximum_batch_size = 1024};
+  }
+
+  std::unique_ptr<BackendComputation> CreateComputation() override {
+    return std::make_unique<TrivialComputation>();
+  }
 };
+
+class TrivialBackendFactory : public BackendFactory {
+ public:
+  int GetPriority() const override { return 4; }
+  std::string_view GetName() const override { return "trivial"; }
+  std::unique_ptr<Backend> Create(const OptionsDict& options) override {
+    return std::make_unique<TrivialBackend>(options);
+  }
+};
+
+REGISTER_BACKEND(TrivialBackendFactory)
+
 }  // namespace
-
-std::unique_ptr<Network> MakeTrivialNetwork(
-    const std::optional<WeightsFile>& /*weights*/, const OptionsDict& options) {
-  return std::make_unique<TrivialNetwork>(options);
-}
-
-REGISTER_NETWORK("trivial", MakeTrivialNetwork, 4)
-
 }  // namespace lczero
